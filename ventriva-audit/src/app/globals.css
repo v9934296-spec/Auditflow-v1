@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #eef1f4;
+  --color-sheet: #ffffff;
+  --color-ink: #14213d;
+  --color-ink-soft: #4a5672;
+  --color-rule: #cfd6e0;
+  --color-caution: #f2c230;
+  --color-blocked: #c8102e;
+  --color-verified: #2e7d4f;
+  --color-notice: #2f5d9e;
+
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Public Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: 3px;
+  --radius-md: 6px;
+}
+
+@layer base {
+  html { background: var(--color-paper); color: var(--color-ink); }
+  body { font-family: var(--font-body); font-size: 1rem; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; letter-spacing: -0.01em; }
+  :focus-visible { outline: 3px solid var(--color-notice); outline-offset: 2px; }
+  ::selection { background: var(--color-caution); color: var(--color-ink); }
+}
+
+/* The inspection tag: the one memorable element. */
+.tag {
+  position: relative;
+  border-radius: 10px 10px 10px 10px;
+  clip-path: polygon(18% 0, 82% 0, 100% 9%, 100% 100%, 0 100%, 0 9%);
+  padding: 3.25rem 1.5rem 1.5rem;
+}
+.tag::before {
+  content: "";
+  position: absolute;
+  top: 1.1rem;
+  left: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--color-paper);
+  box-shadow: inset 0 0 0 3px rgb(0 0 0 / 0.18);
+}
+.tag-stamp { font-family: var(--font-display); font-stretch: 125%; font-weight: 800; letter-spacing: 0.02em; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tag-swing { transform-origin: 50% 0; animation: swing 900ms cubic-bezier(.2,.7,.3,1) 1; }
+  @keyframes swing { 0% { transform: rotate(-6deg); } 55% { transform: rotate(2.5deg); } 100% { transform: rotate(0); } }
+}
+
+.code-excerpt { font-family: var(--font-code); font-size: 0.8rem; line-height: 1.5; }

@@ -1,0 +1,161 @@
+# Ventriva Audit — bundled Semgrep rules (v1).
+# Scanned with --metrics=off; rules are local so customer code is never sent to the Semgrep registry.
+# metadata.category maps to the scoring rubric; metadata.severity overrides Semgrep's coarse levels.
+rules:
+  - id: supabase-service-role-in-client
+    languages: [typescript, javascript]
+    message: The Supabase service-role key is referenced in a client component. It bypasses Row Level Security and would be shipped to every browser.
+    severity: ERROR
+    metadata: { category: security, severity: critical, remediation: "Move this code to a server-only module (route handler, server action, or Edge Function) and use the anon key with RLS on the client." }
+    patterns:
+      - pattern-inside: |
+          "use client";
+          ...
+      - pattern-either:
+          - pattern: process.env.SUPABASE_SERVICE_ROLE_KEY
+          - pattern: process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+          - pattern: process.env.SUPABASE_SERVICE_KEY
+
+  - id: public-env-secret
+    languages: [typescript, javascript]
+    message: A secret-looking variable is exposed through a public (client-bundled) env prefix.
+    severity: ERROR
+    metadata: { category: security, severity: critical, remediation: "Rename the variable without the NEXT_PUBLIC_/VITE_/EXPO_PUBLIC_ prefix, read it only on the server, and rotate the value — it has already been shipped to clients." }
+    patterns:
+      - pattern: process.env.$VAR
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: ^(NEXT_PUBLIC_|VITE_|EXPO_PUBLIC_|REACT_APP_).*(SECRET|SERVICE_ROLE|PRIVATE|STRIPE_SK|SK_LIVE|API_SECRET|WEBHOOK)
+  - id: public-env-secret-vite
+    languages: [typescript, javascript]
+    message: A secret-looking variable is exposed through import.meta.env with a public prefix.
+    severity: ERROR
+    metadata: { category: security, severity: critical, remediation: "Move this secret to a server-only environment variable and rotate it." }
+    patterns:
+      - pattern: import.meta.env.$VAR
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: ^VITE_.*(SECRET|SERVICE_ROLE|PRIVATE|WEBHOOK)
+
+  - id: sql-string-concatenation
+    languages: [typescript, javascript]
+    message: SQL is built with string interpolation, which allows SQL injection if any part comes from user input.
+    severity: ERROR
+    metadata: { category: security, severity: high, remediation: "Use parameterized queries (placeholders like $1 or ?) or your query builder's bound parameters instead of string templates." }
+    pattern-either:
+      - pattern: $DB.query(`...${$X}...`, ...)
+      - pattern: $DB.query("..." + $X + "...", ...)
+      - pattern: $DB.$queryRawUnsafe(...)
+      - pattern: $DB.$executeRawUnsafe(...)
+      - pattern: $DB.raw(`...${$X}...`)
+      - pattern: sql.unsafe(...)
+
+  - id: dangerously-set-inner-html
+    languages: [typescript, javascript]
+    message: dangerouslySetInnerHTML renders raw HTML. If any part is user-controlled this is a stored/reflected XSS vector.
+    severity: WARNING
+    metadata: { category: security, severity: medium, remediation: "Render text normally, or sanitize with a maintained library (e.g. DOMPurify) right before rendering." }
+    pattern: <$EL dangerouslySetInnerHTML={...} />
+
+  - id: eval-usage
+    languages: [typescript, javascript]
+    message: Dynamic code execution (eval / new Function) can run attacker-supplied code.
+    severity: ERROR
+    metadata: { category: security, severity: high, remediation: "Remove eval/new Function. Parse data with JSON.parse or use a lookup table of allowed operations." }
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+
+  - id: tls-verification-disabled
+    languages: [typescript, javascript]
+    message: TLS certificate verification is disabled, allowing man-in-the-middle attacks.
+    severity: ERROR
+    metadata: { category: security, severity: high, remediation: "Remove rejectUnauthorized:false / NODE_TLS_REJECT_UNAUTHORIZED=0. Fix the certificate chain or supply the correct CA instead." }
+    pattern-either:
+      - pattern: "{..., rejectUnauthorized: false, ...}"
+      - pattern: process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+
+  - id: jwt-decode-without-verify
+    languages: [typescript, javascript]
+    message: jwt.decode() does not verify the signature. Trusting its output lets anyone forge identities.
+    severity: ERROR
+    metadata: { category: security, severity: high, remediation: "Use jwt.verify() (or your auth provider's server SDK, e.g. supabase.auth.getUser()) before trusting claims." }
+    pattern: jwt.decode(...)
+
+  - id: insecure-random-token
+    languages: [typescript, javascript]
+    message: Math.random() is not cryptographically secure and must not be used for tokens, IDs used as secrets, or passwords.
+    severity: WARNING
+    metadata: { category: security, severity: medium, remediation: "Use crypto.randomUUID() or crypto.getRandomValues() / crypto.randomBytes()." }
+    patterns:
+      - pattern: Math.random()
+      - pattern-inside: |
+          $F = ...;
+      - metavariable-regex:
+          metavariable: $F
+          regex: (?i).*(token|secret|password|otp|nonce|key|code).*
+
+  - id: cors-wildcard-with-credentials
+    languages: [typescript, javascript]
+    message: CORS allows any origin while also allowing credentials.
+    severity: ERROR
+    metadata: { category: security, severity: high, remediation: "Restrict origin to an explicit allowlist of your own domains." }
+    pattern-either:
+      - pattern: "cors({..., origin: '*', credentials: true, ...})"
+      - pattern: "cors({..., origin: true, credentials: true, ...})"
+
+  - id: child-process-exec-interpolation
+    languages: [typescript, javascript]
+    message: A shell command is built from interpolated values — command injection if any value is user-controlled.
+    severity: ERROR
+    metadata: { category: security, severity: high, remediation: "Use execFile/spawn with an argument array and never pass user input through a shell." }
+    pattern-either:
+      - pattern: $CP.exec(`...${$X}...`, ...)
+      - pattern: exec(`...${$X}...`, ...)
+      - pattern: execSync(`...${$X}...`, ...)
+
+  - id: open-redirect
+    languages: [typescript, javascript]
+    message: Redirect target is taken directly from request input — open redirect.
+    severity: WARNING
+    metadata: { category: security, severity: medium, remediation: "Only redirect to relative paths or to an allowlist of hosts; validate with new URL() against your origin." }
+    pattern-either:
+      - pattern: $RES.redirect($REQ.query.$P)
+      - pattern: NextResponse.redirect($REQ.nextUrl.searchParams.get(...))
+      - pattern: redirect($SP.get("next"))
+      - pattern: redirect($SP.get("redirect"))
+
+  - id: empty-catch
+    languages: [typescript, javascript]
+    message: An empty catch block silently swallows errors, hiding failures in production.
+    severity: INFO
+    metadata: { category: reliability, severity: low, remediation: "Log the error to your error tracker or rethrow it. If ignoring it is truly safe, narrow the try block to the single call that may fail." }
+    pattern: |
+      try { ... } catch ($E) {}
+
+  - id: unhandled-fetch-response
+    languages: [typescript, javascript]
+    message: fetch() response is parsed without checking res.ok, so HTTP errors are treated as success.
+    severity: INFO
+    metadata: { category: reliability, severity: low, remediation: "Check `if (!res.ok)` and handle the error before calling res.json()." }
+    patterns:
+      - pattern: (await fetch(...)).json()
+
+  - id: python-sql-format
+    languages: [python]
+    message: SQL built with f-strings or % formatting — SQL injection risk.
+    severity: ERROR
+    metadata: { category: security, severity: high, remediation: "Pass parameters separately: cursor.execute(sql, params)." }
+    pattern-either:
+      - pattern: $C.execute(f"...")
+      - pattern: $C.execute("..." % $X)
+      - pattern: $C.execute("...".format(...))
+
+  - id: python-debug-true
+    languages: [python]
+    message: Debug mode is enabled; this leaks stack traces and may expose an interactive debugger.
+    severity: WARNING
+    metadata: { category: security, severity: medium, remediation: "Drive DEBUG from an environment variable that defaults to False in production." }
+    pattern-either:
+      - pattern: DEBUG = True
+      - pattern: $APP.run(..., debug=True, ...)
