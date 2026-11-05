@@ -69,7 +69,7 @@ export function ticketForFinding(f: Finding): Ticket {
         .map(([k, v]) => `  - ${k}: ${Array.isArray(v) ? v.slice(0, 15).join(", ") : String(v)}`)
         .join("\n")
     : "";
-  const remediation = f.ai?.verdict === "likely_true_positive" && f.ai.remediation ? f.ai.remediation : f.remediation;
+  const remediation = f.remediation;
 
   const body = [
     `**Priority:** ${PRIORITY_LABEL[f.priority]}  `,
@@ -120,7 +120,7 @@ export function ticketForFinding(f: Finding): Ticket {
 
 /** Builds tickets for actionable findings, sorted P0 → P3. Dependency advisories are grouped per package. */
 export function buildTickets(findings: Finding[]): Ticket[] {
-  const actionable = findings.filter((f) => f.severity !== "info" && f.ai?.verdict !== "likely_false_positive" && f.change !== "fixed");
+  const actionable = findings.filter((f) => f.change !== "fixed" && (f.severity !== "info" || f.evidence.facts?.severityUncertain === true));
   const osvByPkg = new Map<string, Finding[]>();
   const others: Finding[] = [];
   for (const f of actionable) {

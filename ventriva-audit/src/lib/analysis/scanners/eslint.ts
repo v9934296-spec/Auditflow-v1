@@ -62,6 +62,7 @@ export async function scanEslint(repo: RepoIndex): Promise<{ findings: RawFindin
   const tsConfig = config(true);
   const jsConfig = config(false);
   const findings: RawFinding[] = [];
+  const inspected: string[] = [];
   let scanned = 0;
   let parseFailures = 0;
   let maintainability = 0;
@@ -77,11 +78,12 @@ export async function scanEslint(repo: RepoIndex): Promise<{ findings: RawFindin
       parseFailures++;
       continue;
     }
-    scanned++;
     if (messages.some((m) => m.fatal)) {
       parseFailures++;
       continue;
     }
+    scanned++;
+    inspected.push(f.path);
     for (const m of messages) {
       if (!m.ruleId) continue;
       const meta = ESLINT_RULES[m.ruleId];
@@ -109,14 +111,16 @@ export async function scanEslint(repo: RepoIndex): Promise<{ findings: RawFindin
       });
     }
   }
+  const status = targets.length === 0 ? "skipped" : parseFailures > 0 || scanned < targets.length ? "partial" : "ran";
   return {
     findings,
     run: {
       name: "eslint",
-      status: targets.length === 0 ? "skipped" : "ran",
+      status,
       filesScanned: scanned,
+      inspectedFiles: inspected,
       durationMs: Date.now() - started,
-      ...(targets.length === 0 ? { reason: "No JavaScript/TypeScript files." } : parseFailures ? { reason: `${parseFailures} file(s) could not be parsed and were not linted.` } : {}),
+      ...(status === "skipped" ? { reason: "No JavaScript/TypeScript files." } : parseFailures ? { reason: `${parseFailures} file(s) could not be parsed and were not linted.` } : {}),
     },
   };
 }

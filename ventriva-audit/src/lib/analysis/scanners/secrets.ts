@@ -19,6 +19,7 @@ function looksLikePlaceholder(v: string): boolean {
 export async function scanSecrets(repo: RepoIndex): Promise<{ findings: RawFinding[]; run: ScannerRun }> {
   const started = Date.now();
   const findings: RawFinding[] = [];
+  const inspected: string[] = [];
   let scanned = 0;
 
   for (const f of repo.files) {
@@ -40,8 +41,10 @@ export async function scanSecrets(repo: RepoIndex): Promise<{ findings: RawFindi
         evidence: { method: "File path matched an environment-file pattern and is not a template (.env.example/.sample).", facts: { file: base } },
         fingerprintKey: f.path,
       });
+      inspected.push(f.path);
     }
     if (!TEXT_LIKE.test(f.path) && !ENV_FILE_RE.test(f.path)) continue;
+    if (!inspected.includes(f.path)) inspected.push(f.path);
     const text = await repo.read(f.path);
     scanned++;
 
@@ -100,5 +103,5 @@ export async function scanSecrets(repo: RepoIndex): Promise<{ findings: RawFindi
     }
   }
 
-  return { findings, run: { name: "secrets", status: "ran", filesScanned: scanned, durationMs: Date.now() - started } };
+  return { findings, run: { name: "secrets", status: "ran", filesScanned: scanned, inspectedFiles: inspected, durationMs: Date.now() - started } };
 }

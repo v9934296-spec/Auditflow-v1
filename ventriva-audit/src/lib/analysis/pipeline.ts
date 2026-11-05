@@ -47,6 +47,19 @@ export interface AnalysisResult {
 
 const PRIORITY_RANK: Record<Priority, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
 
+const CODE_SCANNERS = new Set(["semgrep", "eslint"]);
+
+/** Source files Semgrep or ESLint actually parsed. Language support is not a substitute. */
+export function inspectedSourceFiles(sourcePaths: string[], scanners: ScannerRun[]): string[] {
+  const source = new Set(sourcePaths);
+  const hit = new Set<string>();
+  for (const scanner of scanners) {
+    if (!CODE_SCANNERS.has(scanner.name) || (scanner.status !== "ran" && scanner.status !== "partial")) continue;
+    for (const file of scanner.inspectedFiles ?? []) if (source.has(file)) hit.add(file);
+  }
+  return [...hit];
+}
+
 export function dedupe(findings: Finding[]): Finding[] {
   const map = new Map<string, Finding>();
   for (const f of findings) if (!map.has(f.fingerprint)) map.set(f.fingerprint, f);
@@ -110,24 +123,27 @@ export async function analyzeRepository(repo: RepoIndex, opts: AnalyzeOptions): 
 
   let findings = dedupe(raw).sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
 
-  // Coverage
+  // Coverage is the union of eligible source files a code scanner positively inspected.
+  // Languages outside the scanner set are named in the notes and are not treated as inspected or as eligible.
   const sourceFiles = repo.sourceFiles;
-  const scannable = sourceFiles.filter((f) => f.language && SCANNED_LANGUAGES.has(f.language)).length;
-  const codeScannerRan = scanners.some((s) => (s.name === "semgrep" || s.name === "eslint") && s.status === "ran");
+  const eligible = sourceFiles.filter((f) => f.language && SCANNED_LANGUAGES.has(f.language));
+  const inspected = inspectedSourceFiles(eligible.map((f) => f.path), scanners);
   const coverage: Coverage = {
     filesTotal: (opts.ingest?.filesExtracted ?? repo.files.length) + Object.values(opts.ingest?.skipped ?? {}).reduce((a, b) => a + b, 0),
     filesAnalyzed: repo.files.length,
+    filesIngested: repo.files.length,
+    filesInspected: inspected.length,
     filesSkipped: Object.values(opts.ingest?.skipped ?? {}).reduce((a, b) => a + b, 0),
     skippedReasons: opts.ingest?.skipped ?? {},
     languages: languageBreakdown(sourceFiles),
     scanners,
-    sourceCoverage: sourceFiles.length === 0 ? 0 : codeScannerRan ? scannable / sourceFiles.length : 0,
+    sourceCoverage: eligible.length === 0 ? 0 : inspected.length / eligible.length,
     truncated: opts.ingest?.truncated ?? false,
     notes,
   };
   const unscanned = Object.keys(coverage.languages).filter((l) => !SCANNED_LANGUAGES.has(l));
-  if (unscanned.length) notes.push(`Code-level rules do not cover: ${unscanned.join(", ")}. Secrets, dependencies and readiness checks still ran.`);
-  if (!codeScannerRan) notes.push("No code-level scanner ran; only secrets, dependencies and readiness checks are reflected.");
+  if (unscanned.length) notes.push(`Code-level rules do not cover: ${unscanned.join(", ")}. Secrets, dependencies and readiness checks still ran where those files were present.`);
+  if (inspected.length === 0) notes.push("No source file was positively inspected by Semgrep or ESLint.");
 
   // Carry forward AI assessments for unchanged code (targeted rechecks).
   if (opts.previous?.length) {

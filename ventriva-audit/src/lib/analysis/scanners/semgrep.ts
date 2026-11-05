@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { RepoIndex } from "../files";
+import { SCANNED_LANGUAGES, type RepoIndex } from "../files";
 import { excerpt } from "../files";
 import { redact } from "../redact";
 import type { Category, RawFinding, ScannerRun, Severity } from "../types";
@@ -16,6 +16,14 @@ interface SemgrepResult {
   start: { line: number };
   end: { line: number };
   extra: { message: string; severity: string; metadata?: { category?: string; severity?: string; remediation?: string } };
+}
+
+/** A successful Semgrep exit is not coverage. Eligible files missing from paths.scanned stay uninspected. */
+export function semgrepRunStatus(eligiblePaths: string[], inspected: string[]): { status: "ran" | "partial"; reason?: string } {
+  const seen = new Set(inspected);
+  const missed = eligiblePaths.filter((p) => !seen.has(p));
+  if (missed.length === 0) return { status: "ran" };
+  return { status: "partial", reason: `Semgrep did not inspect ${missed.length} eligible source file(s).` };
 }
 
 const SEVERITIES: Severity[] = ["critical", "high", "medium", "low", "info"];
@@ -80,9 +88,18 @@ export async function scanSemgrep(repo: RepoIndex, opts: { timeoutMs?: number } 
       const rel = path.relative(repo.root, path.resolve(repo.root, r.path)).split(path.sep).join("/");
       if (!texts.has(rel)) texts.set(rel, await repo.read(rel));
     }
+    const inspected = (json.paths?.scanned ?? []).map((p) => path.relative(repo.root, path.resolve(repo.root, p)).split(path.sep).join("/"));
+    if (!json.paths?.scanned) {
+      return {
+        findings: mapSemgrepResults(json.results, repo.root, texts),
+        run: { name: "semgrep", status: "partial", reason: "Semgrep did not report which files it inspected.", filesScanned: 0, inspectedFiles: [], durationMs: Date.now() - started },
+      };
+    }
+    const eligible = repo.sourceFiles.filter((f) => f.language && SCANNED_LANGUAGES.has(f.language)).map((f) => f.path);
+    const completion = semgrepRunStatus(eligible, inspected);
     return {
       findings: mapSemgrepResults(json.results, repo.root, texts),
-      run: { name: "semgrep", status: "ran", filesScanned: json.paths?.scanned?.length, durationMs: Date.now() - started },
+      run: { name: "semgrep", status: completion.status, filesScanned: inspected.length, inspectedFiles: inspected, durationMs: Date.now() - started, ...(completion.reason ? { reason: completion.reason } : {}) },
     };
   } catch (e) {
     return { findings: [], run: { name: "semgrep", status: "failed", reason: (e as Error).message.slice(0, 300), durationMs: Date.now() - started } };

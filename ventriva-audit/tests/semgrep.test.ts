@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { indexRepo } from "@/lib/analysis/files";
-import { scanSemgrep } from "@/lib/analysis/scanners/semgrep";
+import { scanSemgrep, semgrepRunStatus } from "@/lib/analysis/scanners/semgrep";
 
 let installed = true;
 try {
@@ -12,6 +12,14 @@ try {
 } catch {
   installed = false;
 }
+
+describe("semgrepRunStatus", () => {
+  it("does not treat a process that scanned 3 of 10 eligible files as complete", () => {
+    const files = Array.from({ length: 10 }, (_, i) => `src/f${i}.ts`);
+    expect(semgrepRunStatus(files, files.slice(0, 3))).toMatchObject({ status: "partial" });
+    expect(semgrepRunStatus(files, files)).toEqual({ status: "ran" });
+  });
+});
 
 describe.skipIf(!installed)("semgrep (integration)", () => {
   it("runs bundled rules against a repo without executing it", async () => {

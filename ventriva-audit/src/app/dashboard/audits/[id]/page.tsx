@@ -226,12 +226,12 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
           {audit.coverage ? (
             <section>
               <h2 className="text-2xl font-bold">What was inspected</h2>
-              <p className="mt-2 text-sm text-ink-soft">{audit.coverage.filesAnalyzed.toLocaleString()} files analyzed, {audit.coverage.filesSkipped.toLocaleString()} skipped (dependencies, build output, binaries). Languages: {Object.entries(audit.coverage.languages).map(([l, n]) => `${l} (${n})`).join(", ") || "none detected"}.</p>
+              <p className="mt-2 text-sm text-ink-soft">{(audit.coverage.filesIngested ?? audit.coverage.filesAnalyzed).toLocaleString()} files ingested, {"filesInspected" in audit.coverage && audit.coverage.filesInspected != null ? `${audit.coverage.filesInspected.toLocaleString()} eligible source files positively inspected by Semgrep or ESLint` : "inspection count not recorded for this audit"}, {audit.coverage.filesSkipped.toLocaleString()} not extracted (dependencies, build output, binaries). Languages present: {Object.entries(audit.coverage.languages).map(([l, n]) => `${l} (${n})`).join(", ") || "none detected"}.</p>
               <table className="mt-4 w-full max-w-2xl text-sm">
                 <thead><tr className="border-b border-ink text-left"><th className="py-1.5">Scanner</th><th>Status</th><th>Notes</th></tr></thead>
                 <tbody className="divide-y divide-rule">
                   {audit.coverage.scanners.map((s) => (
-                    <tr key={s.name}><td className="py-1.5 font-semibold">{s.name}</td><td className={s.status === "ran" ? "text-verified" : s.status === "failed" ? "text-blocked" : "text-ink-soft"}>{s.status}</td><td className="text-ink-soft">{s.reason ?? (s.filesScanned !== undefined ? `${s.filesScanned} files` : "")}</td></tr>
+                    <tr key={s.name}><td className="py-1.5 font-semibold">{s.name}</td><td className={s.status === "ran" ? "text-verified" : s.status === "failed" || s.status === "partial" ? "text-blocked" : "text-ink-soft"}>{s.status}</td><td className="text-ink-soft">{s.reason ?? (s.filesScanned !== undefined ? `${s.filesScanned} files inspected` : "")}</td></tr>
                   ))}
                 </tbody>
               </table>
