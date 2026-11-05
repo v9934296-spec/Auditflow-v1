@@ -13,7 +13,7 @@ Next.js 16 (Vercel)          Supabase                 Trigger.dev worker (isolat
 │   audits / billing / repos │  (select-own policies;     ├─ streamed tarball → safe extract (limits, no symlinks)
 ├─ Stripe webhook            │   writes = service role)   ├─ scanners: secrets · OSV · Semgrep · ESLint · readiness
 └─ GitHub webhook            └─ entitlement functions     ├─ Claude triage (budgeted, redacted excerpts only)
-                                (row-locked)              ├─ deterministic scoring (rubric 2026.10-v1)
+                                (row-locked)              ├─ deterministic scoring (rubric 2026.11-v1)
                                                           └─ tickets → DB, workspace deleted
 ```
 
@@ -22,7 +22,7 @@ Three engineering rules, enforced in code:
 2. **Customer code is never executed.** Nothing is installed or built. ESLint runs through the in-memory `Linter` API with our config only; repo config files are never loaded (`src/lib/analysis/scanners/eslint.ts`).
 3. **Hard cost ceilings.** Per-tier limits on archive size, files, AI findings, input tokens and USD per audit, plus a platform-wide daily AI cap that fails closed (`src/lib/config/plans.ts`, `src/lib/analysis/llm/provider.ts`).
 
-Honesty rules: untested categories show "Not assessed" (never a passing score); absence checks are labelled *suspected*; a recheck only marks a finding *fixed* if the scanner that found it ran again; any failed core scanner blocks a "launch ready" verdict.
+Honesty rules: untested categories show "Not assessed" (never a passing score); absence checks are labelled *suspected*; a recheck only marks a finding *fixed* if the scanner that found it ran again; a skipped, failed, or partial required scanner, a truncated extract, or any eligible source file that Semgrep and ESLint did not inspect, blocks a "launch ready" verdict. Languages outside that set are named and are not counted as inspected. OSV may be skipped only when the repository has no supported lockfile.
 
 ## Key files
 
@@ -86,7 +86,7 @@ Deploy the web app to Vercel with the same env vars.
 
 ```bash
 npm run typecheck
-npm test               # 45 tests; Semgrep integration test runs if the CLI is installed
+npm test               # Vitest. The Semgrep integration test runs when the CLI is installed
 npm run build
 npm run audit:local -- ../some-repo            # run the engine on any local folder, no services needed
 npm run audit:local -- ../some-repo --ai       # include Claude triage (uses ANTHROPIC_API_KEY, capped)
@@ -98,8 +98,8 @@ Set `SEMGREP_ENABLE_VERSION_CHECK=0` locally, or Semgrep can stall for over a mi
 
 - **Not yet run end-to-end against live services.** Engine, scoring, tickets, ingest and triage are unit-tested; GitHub/Stripe/Supabase/Trigger wiring compiles and builds but needs a staging smoke test (see `docs/cursor-tasks.md`, task 1).
 - Readiness detectors are strongest for JS/TS (Next.js, Supabase, Stripe). Python gets secrets, dependency and Semgrep coverage only.
-- Pattern checks can match inside string literals (e.g. docs that mention `auth.getSession()`). Paid audits rely on AI triage to dismiss these.
+- Pattern checks can match inside string literals (e.g. docs that mention `auth.getSession()`). AI may label those as likely false positives. That label does not change the official score, verdict, or ticket. The AI executive summary can still omit the finding from its narrative.
 - Regression alerts appear on the dashboard only; there is no email delivery yet.
 - Stripe refunds (`charge.refunded`) don't claw back unused audit credits.
-- Architecture and performance are reported as "Not assessed" in rubric `2026.10-v1`.
+- Architecture and performance are reported as "Not assessed" in rubric `2026.11-v1`.
 - `/terms` and `/privacy` are templates; have them reviewed before launch.

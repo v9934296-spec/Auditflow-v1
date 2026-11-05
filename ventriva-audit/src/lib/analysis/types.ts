@@ -88,22 +88,31 @@ export interface Finding extends RawFinding {
   change?: FindingChange;
 }
 
+export type ScannerStatus = "ran" | "partial" | "skipped" | "failed";
+
 export interface ScannerRun {
   name: string;
-  status: "ran" | "skipped" | "failed";
+  status: ScannerStatus;
   reason?: string;
   filesScanned?: number;
+  /** Repo-relative paths this scanner successfully read. Absent means the scanner did not report them. */
+  inspectedFiles?: string[];
   durationMs?: number;
 }
 
 export interface Coverage {
   filesTotal: number;
+  /** Files ingested into the workspace. This is not proof they were inspected. */
   filesAnalyzed: number;
+  /** Same count as filesAnalyzed, named for the report so ingestion is not confused with inspection. */
+  filesIngested: number;
+  /** Source files positively inspected by Semgrep or ESLint. */
+  filesInspected: number;
   filesSkipped: number;
   skippedReasons: Record<string, number>;
   languages: Record<string, number>;
   scanners: ScannerRun[];
-  /** Fraction (0–1) of source files that at least one code scanner inspected. */
+  /** Fraction (0–1) of source files positively inspected by Semgrep or ESLint. */
   sourceCoverage: number;
   truncated: boolean;
   notes: string[];

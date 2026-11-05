@@ -41,9 +41,10 @@ describe("full pipeline — vulnerable vibe-coded app", async () => {
     expect(blob).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/);
   });
 
-  it("scores as not launch ready with a P0 cap and reports unassessed categories", () => {
+  it("scores as not launch ready, keeps the P0s, and withholds a numeric score while Semgrep was skipped", () => {
     expect(result.scorecard.verdict).toBe("not_launch_ready");
-    expect(result.scorecard.overall).toBeLessThanOrEqual(49);
+    expect(result.scorecard.counts.P0).toBeGreaterThan(0);
+    expect(result.scorecard.overall).toBeNull();
     const arch = result.scorecard.categories.find((c) => c.category === "architecture")!;
     expect(arch.score).toBeNull();
     expect(result.scorecard.readiness.find((r) => r.area === "billing")!.status).toBe("blocked");
@@ -78,9 +79,54 @@ describe("full pipeline — healthy app", async () => {
     }
   });
 
-  it("scores higher than the vulnerable app", async () => {
-    const bad = await analyzeRepository(memoryIndex(vulnerableRepo()), { kind: "full_audit", fetchImpl: noVulns, disableSemgrep: true });
-    expect(result.scorecard.overall!).toBeGreaterThan(bad.scorecard.overall!);
+  it("does not clear launch while Semgrep was skipped", () => {
+    expect(result.coverage.scanners.find((s) => s.name === "semgrep")!.status).toBe("skipped");
+    expect(result.scorecard.verdict).toBe("insufficient_coverage");
+    expect(result.scorecard.overall).toBeNull();
+  });
+});
+
+describe("incomplete dependency lookup", async () => {
+  const repo = memoryIndex({
+    "package-lock.json": JSON.stringify({ packages: { "node_modules/leftpad": { version: "1.0.0" } } }),
+    "main.go": "package main\nfunc main() {}\n",
+  });
+  const result = await analyzeRepository(repo, {
+    kind: "full_audit",
+    disableSemgrep: true,
+    fetchImpl: async () => {
+      throw new Error("timeout");
+    },
+  });
+
+  it("records an API timeout as a failed dependency scan instead of zero vulnerabilities", () => {
+    const osv = result.coverage.scanners.find((s) => s.name === "osv")!;
+    expect(osv.status).toBe("failed");
+    expect(osv.reason).toMatch(/timeout/);
+    expect(result.findings.filter((f) => f.source === "osv")).toHaveLength(0);
+    expect(result.scorecard.verdict).not.toBe("launch_ready_in_scope");
+    expect(result.scorecard.verdict).not.toBe("launch_with_fixes");
+  });
+
+  it("names languages outside the code scanners and does not put them in the coverage ratio", () => {
+    expect(result.coverage.filesInspected).toBe(0);
+    expect(result.coverage.sourceCoverage).toBe(0);
+    expect(result.coverage.notes.join(" ")).toMatch(/Go/);
+  });
+});
+
+describe("unsupported languages stay outside the coverage ratio", async () => {
+  const result = await analyzeRepository(memoryIndex({
+    "package-lock.json": JSON.stringify({ packages: {} }),
+    "app.ts": "export const ready = 1;\n",
+    "main.go": "package main\nfunc main() {}\n",
+  }), { kind: "full_audit", fetchImpl: noVulns, disableSemgrep: true });
+
+  it("counts the inspected TypeScript file and names Go as uncovered", () => {
+    expect(result.coverage.filesInspected).toBe(1);
+    expect(result.coverage.sourceCoverage).toBe(1);
+    expect(result.coverage.notes.join(" ")).toMatch(/Go/);
+    expect(result.scorecard.verdict).not.toBe("launch_ready_in_scope");
   });
 });
 
