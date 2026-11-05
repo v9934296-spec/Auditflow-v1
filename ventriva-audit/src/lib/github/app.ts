@@ -150,12 +150,37 @@ export async function downloadTarball(token: string, fullName: string, sha: stri
   return res.body;
 }
 
-/** Files changed between two commits, or null when the diff is too large to enumerate. */
-export async function changedFiles(token: string, fullName: string, base: string, head: string): Promise<Set<string> | null> {
-  if (base === head) return new Set();
+export interface CommitComparison {
+  /** null when the API failed or the diff is too large to trust. An empty set means nothing changed. */
+  files: Set<string> | null;
+  /** Previous path to current path. Empty when the comparison cannot be trusted. */
+  renames: Map<string, string>;
+}
+
+/** A missing file list, or 300 or more files, is an incomplete diff and must not be treated as empty. */
+export function comparisonFromFiles(files: { filename: string; previous_filename?: string }[] | null): CommitComparison {
+  if (!files || files.length >= 300) return { files: null, renames: new Map() };
+  const renames = new Map<string, string>();
+  const changed = new Set<string>();
+  for (const file of files) {
+    changed.add(file.filename);
+    if (file.previous_filename) {
+      changed.add(file.previous_filename);
+      renames.set(file.previous_filename, file.filename);
+    }
+  }
+  return { files: changed, renames };
+}
+
+export async function commitComparison(token: string, fullName: string, base: string, head: string): Promise<CommitComparison> {
+  if (base === head) return { files: new Set(), renames: new Map() };
   const res = await fetch(`https://api.github.com/repos/${fullName}/compare/${base}...${head}?per_page=300`, { headers: ghHeaders(token) });
-  if (!res.ok) return null;
+  if (!res.ok) return { files: null, renames: new Map() };
   const json = (await res.json()) as { files?: { filename: string; previous_filename?: string }[] };
-  if (!json.files || json.files.length >= 300) return null;
-  return new Set(json.files.flatMap((f) => [f.filename, ...(f.previous_filename ? [f.previous_filename] : [])]));
+  return comparisonFromFiles(json.files ?? null);
+}
+
+/** Files changed between two commits, or null when the diff is too large or unavailable. */
+export async function changedFiles(token: string, fullName: string, base: string, head: string): Promise<Set<string> | null> {
+  return (await commitComparison(token, fullName, base, head)).files;
 }

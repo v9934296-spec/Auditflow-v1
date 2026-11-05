@@ -6,7 +6,7 @@ import type { Finding } from "@/lib/analysis/types";
 import { LIMITS } from "@/lib/config/plans";
 import type { AuditRow, FindingRow, RepositoryRow } from "@/lib/db/types";
 import { serverEnv } from "@/lib/env";
-import { changedFiles, downloadTarball, repoScopedToken, resolveHeadSha } from "@/lib/github/app";
+import { commitComparison, downloadTarball, repoScopedToken, resolveHeadSha } from "@/lib/github/app";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { refundEntitlement } from "./entitlements";
 
@@ -158,13 +158,18 @@ export async function runAudit(auditId: string): Promise<{ status: "completed" |
   const sha = await resolveHeadSha(token, repo.full_name, repo.default_branch);
 
   let previous: PreviousFinding[] | undefined;
-  let changed: Set<string> | undefined;
+  let changed: Set<string> | null | undefined;
+  let renames = new Map<string, string>();
   if (audit.previous_audit_id) {
     const { data: prevAudit } = await db.from("audits").select("commit_sha").eq("id", audit.previous_audit_id).single();
     const { data: prevRows, error: prevErr } = await db.from("findings").select("*").eq("audit_id", audit.previous_audit_id);
     if (prevErr) throw prevErr;
     previous = (prevRows as FindingRow[]).map(rowToFinding);
-    if (prevAudit?.commit_sha) changed = (await changedFiles(token, repo.full_name, prevAudit.commit_sha as string, sha)) ?? undefined;
+    if (prevAudit?.commit_sha) {
+      const compared = await commitComparison(token, repo.full_name, prevAudit.commit_sha as string, sha);
+      changed = compared.files;
+      renames = compared.renames;
+    }
   }
 
   let workspace;
@@ -183,7 +188,7 @@ export async function runAudit(auditId: string): Promise<{ status: "completed" |
       if (spendErr) return false; // fail closed
       return Number(spent) + estimateUsd <= env.DAILY_AI_SPEND_CAP_USD;
     };
-    const result = await analyzeRepository(index, { kind: audit.kind, ingest: workspace.stats, provider, globalBudgetGuard, previous, changedFiles: changed });
+    const result = await analyzeRepository(index, { kind: audit.kind, ingest: workspace.stats, provider, globalBudgetGuard, previous, changedFiles: changed, renames });
     await persist(audit, repo, sha, result);
     if (audit.kind === "monitor") await db.from("repositories").update({ last_monitor_scan_at: new Date().toISOString() }).eq("id", repo.id);
     return { status: "completed", score: result.scorecard.overall };
