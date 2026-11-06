@@ -1,7 +1,8 @@
-import { mkdtemp, readdir, rm, writeFile, mkdir, symlink, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile, mkdir, readFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { gunzipSync, gzipSync } from "node:zlib";
 import * as tar from "tar";
 import { afterAll, describe, expect, it } from "vitest";
 import { LIMITS } from "@/lib/config/plans";
@@ -18,9 +19,26 @@ async function makeTarball(files: Record<string, string>, opts: { symlink?: [str
     await mkdir(path.dirname(path.join(top, p)), { recursive: true });
     await writeFile(path.join(top, p), c);
   }
-  if (opts.symlink) await symlink(opts.symlink[1], path.join(top, opts.symlink[0]));
   const out = path.join(src, "repo.tgz");
   await tar.create({ gzip: true, file: out, cwd: src, portable: true }, ["owner-repo-abc123"]);
+  if (opts.symlink) {
+    const [name, target] = opts.symlink;
+    const raw = gunzipSync(await readFile(out));
+    let end = raw.length;
+    while (end >= 512 && raw.subarray(end - 512, end).every((byte) => byte === 0)) end -= 512;
+    const header = new tar.Header({
+      path: `owner-repo-abc123/${name}`,
+      linkpath: target,
+      type: "SymbolicLink",
+      mode: 0o777,
+      size: 0,
+      uid: 0,
+      gid: 0,
+      mtime: new Date(0),
+    });
+    if (header.encode() || !header.block) throw new Error("could not encode symlink tar header");
+    await writeFile(out, gzipSync(Buffer.concat([raw.subarray(0, end), header.block, Buffer.alloc(1024)])));
+  }
   return out;
 }
 
