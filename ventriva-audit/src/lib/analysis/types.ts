@@ -4,7 +4,7 @@ export type Severity = "critical" | "high" | "medium" | "low" | "info";
 export type Priority = "P0" | "P1" | "P2" | "P3";
 export type EvidenceTier = "verified" | "suspected" | "not_tested";
 export type Confidence = "high" | "medium" | "low";
-export type FindingChange = "new" | "unresolved" | "fixed" | "regressed";
+export type FindingChange = "new" | "unresolved" | "fixed" | "regressed" | "not_retested";
 
 /**
  * Scoring categories. Architecture and performance are listed so the report can
@@ -131,13 +131,70 @@ export function severityToPriority(severity: Severity): Priority {
   }
 }
 
-export function fingerprintOf(f: RawFinding): string {
+function digest(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 32);
+}
+
+/**
+ * Fingerprint stored by audits that hashed the rendered excerpt, including line numbers.
+ * Kept so a recheck can still recognize those rows.
+ */
+export function legacyFingerprintOf(f: RawFinding): string {
   const key =
     f.fingerprintKey ??
     [f.filePath ?? "", (f.snippet ?? "").replace(/\s+/g, " ").trim()].join("|");
-  return createHash("sha256").update(`${f.ruleId}::${key}`).digest("hex").slice(0, 32);
+  return digest(`${f.ruleId}::${key}`);
 }
 
-export function finalize(f: RawFinding): Finding {
-  return { ...f, fingerprint: fingerprintOf(f), priority: severityToPriority(f.severity) };
+/** Matched source with line numbers and all whitespace removed. Context lines are excluded when the match range is known. */
+export function normalizedMatchText(snippet: string | undefined, startLine?: number, endLine?: number): string {
+  if (!snippet) return "";
+  const parsed: { line: number; body: string }[] = [];
+  for (const raw of snippet.split("\n")) {
+    const match = /^[ \t]*(\d+)[ \t]+\|[ \t]?(.*)$/.exec(raw);
+    if (match?.[1]) parsed.push({ line: Number(match[1]), body: match[2] ?? "" });
+  }
+  let bodies: string[];
+  if (parsed.length && startLine != null && endLine != null) {
+    bodies = parsed.filter((p) => p.line >= startLine && p.line <= endLine).map((p) => p.body);
+    if (!bodies.length) bodies = parsed.map((p) => p.body);
+  } else if (parsed.length) {
+    bodies = parsed.map((p) => p.body);
+  } else {
+    bodies = [snippet];
+  }
+  return bodies.join("\n").replace(/\s+/g, "");
+}
+
+/** Identity that survives a line move or a whitespace-only edit. The path is part of the key unless a rename map says otherwise. */
+export function textIdentity(f: Pick<RawFinding, "ruleId" | "filePath" | "snippet" | "startLine" | "endLine">, path = f.filePath): string {
+  return `${f.ruleId}::${(path ?? "").replaceAll("\\", "/")}::${normalizedMatchText(f.snippet, f.startLine, f.endLine)}`;
+}
+
+export function fingerprintOf(f: RawFinding, occurrence = 0): string {
+  if (f.fingerprintKey) return legacyFingerprintOf(f);
+  const base = textIdentity(f);
+  return digest(occurrence === 0 ? base : `${base}#${occurrence}`);
+}
+
+export function finalize(f: RawFinding, occurrence = 0): Finding {
+  return { ...f, fingerprint: fingerprintOf(f, occurrence), priority: severityToPriority(f.severity) };
+}
+
+/** Assigns fingerprints, using occurrence order so two copies of the same rule stay distinct. */
+export function identifyFindings(raw: RawFinding[]): Finding[] {
+  const groups = new Map<string, { finding: RawFinding; index: number }[]>();
+  raw.forEach((finding, index) => {
+    if (finding.fingerprintKey) return;
+    const key = textIdentity(finding);
+    const group = groups.get(key) ?? [];
+    group.push({ finding, index });
+    groups.set(key, group);
+  });
+  const occurrence = new Map<RawFinding, number>();
+  for (const group of groups.values()) {
+    group.sort((a, b) => (a.finding.startLine ?? 0) - (b.finding.startLine ?? 0) || a.index - b.index);
+    group.forEach((item, index) => occurrence.set(item.finding, index));
+  }
+  return raw.map((finding) => finalize(finding, occurrence.get(finding) ?? 0));
 }

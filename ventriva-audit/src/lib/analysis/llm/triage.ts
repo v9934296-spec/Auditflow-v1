@@ -139,7 +139,8 @@ Structure: one sentence verdict; the 2–3 most important blockers and why they 
 Never describe the app as secure or production-ready in absolute terms; this is a static review within the stated scope.`;
 
 export function deterministicSummary(card: Scorecard, findings: Finding[]): string {
-  const top = findings.filter((f) => f.priority === "P0" || f.priority === "P1").slice(0, 3);
+  const live = findings.filter((f) => f.change !== "fixed");
+  const top = live.filter((f) => f.priority === "P0" || f.priority === "P1").slice(0, 3);
   const verdict = VERDICT_LABELS[card.verdict];
   const parts = [
     `${verdict}: ${card.counts.P0} critical blocker(s), ${card.counts.P1} high-priority issue(s), ${card.counts.P2 + card.counts.P3} other improvement(s).`,
@@ -157,7 +158,7 @@ export async function writeSummary(card: Scorecard, findings: Finding[], provide
     categories: card.categories.map((c) => ({ category: c.category, score: c.score ?? "not assessed" })),
     readiness: card.readiness.map((r) => ({ area: r.area, status: r.status, failed: r.checks.filter((c) => c.status === "fail").map((c) => c.label) })),
     topFindings: findings
-      .filter((f) => f.ai?.verdict !== "likely_false_positive")
+      .filter((f) => f.change !== "fixed" && f.ai?.verdict !== "likely_false_positive")
       .slice(0, 8)
       .map((f) => ({ priority: f.priority, title: f.title, evidence: f.tier })),
     coverage: card.coverageNote,
