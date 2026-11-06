@@ -131,6 +131,7 @@ function notRetested(previous: PreviousFinding, scanners: ScannerRun[]): Finding
 /**
  * Compares current findings with a previous audit.
  * Fixed requires the same file, dependency, or configuration to have been inspected by a completed scanner.
+ * A verified fix stays on later clean audits so a return is regressed, not new.
  * Regressed requires the same issue to have been verified fixed before. Anything else new is new.
  */
 export function compareWithPrevious(
@@ -157,7 +158,6 @@ export function compareWithPrevious(
 
   for (const side of previousSides) {
     if (matched.has(side)) continue;
-    if (side.finding.change === "fixed" && findingRetested(side.finding, scanners, renames)) continue;
     if (findingRetested(side.finding, scanners, renames)) {
       const { id: _id, ...rest } = side.finding as PreviousFinding;
       out.push({ ...rest, change: "fixed" });

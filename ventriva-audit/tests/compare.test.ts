@@ -126,6 +126,34 @@ describe("compareWithPrevious", () => {
     expect(unseen.map((f) => f.change)).toEqual(["new"]);
   });
 
+  it("keeps a verified fix through later clean audits and classifies its return as regressed", () => {
+    const scanners = [run("ran", ["src/a.ts"])];
+    const detected = compareWithPrevious([current()], [], scanners);
+    expect(detected.map((f) => f.change)).toEqual(["new"]);
+
+    const verified = compareWithPrevious([], detected, scanners);
+    expect(verified.map((f) => f.change)).toEqual(["fixed"]);
+
+    const clean = compareWithPrevious([], verified, scanners);
+    const stillClean = compareWithPrevious([], clean, scanners);
+    const carried = stillClean.filter((f) => f.ruleId === "semgrep.xss");
+    expect(carried).toHaveLength(1);
+    expect(carried[0]!.change).toBe("fixed");
+    expect(verified.filter((f) => f.ruleId === "semgrep.xss")).toHaveLength(1);
+
+    const returned = compareWithPrevious([current()], stillClean, scanners);
+    expect(returned.filter((f) => f.ruleId === "semgrep.xss").map((f) => f.change)).toEqual(["regressed"]);
+
+    const fresh = current({ ruleId: "semgrep.fresh", title: "fresh", snippet: "  4 | other()" });
+    const mixed = compareWithPrevious([current(), fresh], stillClean, scanners);
+    expect(mixed.find((f) => f.ruleId === "semgrep.xss")!.change).toBe("regressed");
+    expect(mixed.find((f) => f.ruleId === "semgrep.fresh")!.change).toBe("new");
+
+    const legacyClean = compareWithPrevious([], compareWithPrevious([], [historical({}, "fixed")], scanners), scanners);
+    const legacyReturn = compareWithPrevious([current()], legacyClean, scanners);
+    expect(legacyReturn.filter((f) => f.ruleId === "semgrep.xss").map((f) => f.change)).toEqual(["regressed"]);
+  });
+
   it("does not reuse an AI assessment when the diff is missing or the file changed", () => {
     const prior = { ...historical(), ai: { verdict: "likely_false_positive" as const, confidence: "high" as const, explanation: "old", remediation: "ignore", model: "m" } };
     const cur = current();
