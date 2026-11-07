@@ -23,7 +23,7 @@ const AREA_TONE: Record<AreaStatus, string> = {
 };
 const AREA_WORD: Record<AreaStatus, string> = { blocked: "Blocked", issues: "Needs work", ready: "Passed", not_applicable: "Not applicable" };
 const CHECK_MARK = { pass: { sym: "✓", cls: "text-verified", label: "Passed" }, fail: { sym: "✕", cls: "text-blocked", label: "Failed" }, not_applicable: { sym: "–", cls: "text-ink-soft", label: "Not applicable" } } as const;
-const CHANGE_LABEL: Record<FindingChange, string> = { new: "New", unresolved: "Still open", fixed: "Fixed", regressed: "New since last check" };
+const CHANGE_LABEL: Record<FindingChange, string> = { new: "New", unresolved: "Still open", fixed: "Fixed", regressed: "Regressed", not_retested: "Not retested" };
 const PRIORITY_HEADING: Record<Priority, string> = { P0: "P0 · Launch blockers", P1: "P1 · High risk", P2: "P2 · Important", P3: "P3 · Optional" };
 
 export default async function AuditReport({ params }: { params: Promise<{ id: string }> }) {
@@ -110,7 +110,9 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
             <section className="flex flex-wrap gap-8 rounded-[var(--radius-md)] border border-rule bg-sheet p-5">
               <div><p className="text-3xl font-black text-verified">{fixed.length}</p><p className="text-sm text-ink-soft">Fixed</p></div>
               <div><p className="text-3xl font-black">{open.filter((f) => f.change === "unresolved").length}</p><p className="text-sm text-ink-soft">Still open</p></div>
-              <div><p className="text-3xl font-black text-blocked">{open.filter((f) => f.change === "regressed").length}</p><p className="text-sm text-ink-soft">New since last check</p></div>
+              <div><p className="text-3xl font-black">{open.filter((f) => f.change === "new").length}</p><p className="text-sm text-ink-soft">New</p></div>
+              <div><p className="text-3xl font-black text-blocked">{open.filter((f) => f.change === "regressed").length}</p><p className="text-sm text-ink-soft">Regressed</p></div>
+              <div><p className="text-3xl font-black">{open.filter((f) => f.change === "not_retested").length}</p><p className="text-sm text-ink-soft">Not retested</p></div>
             </section>
           ) : null}
 
@@ -187,7 +189,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
                           <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 p-4">
                             <Badge tone={f.priority}>{f.priority}</Badge>
                             <span className="min-w-0 flex-1 font-semibold">{f.title}</span>
-                            {f.change && f.change !== "new" ? <Badge tone={f.change === "regressed" ? "P0" : "neutral"}>{CHANGE_LABEL[f.change]}</Badge> : null}
+                            {f.change ? <Badge tone={f.change === "regressed" ? "P0" : "neutral"}>{CHANGE_LABEL[f.change]}</Badge> : null}
                             <Badge tone={f.evidence_tier}>{f.evidence_tier === "verified" ? "Verified" : f.evidence_tier === "suspected" ? "Suspected" : "Not tested"}</Badge>
                             {f.ai_assessment?.verdict === "likely_false_positive" ? <Badge>AI: likely false positive</Badge> : null}
                           </summary>

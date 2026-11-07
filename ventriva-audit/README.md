@@ -22,7 +22,7 @@ Three engineering rules, enforced in code:
 2. **Customer code is never executed.** Nothing is installed or built. ESLint runs through the in-memory `Linter` API with our config only; repo config files are never loaded (`src/lib/analysis/scanners/eslint.ts`).
 3. **Hard cost ceilings.** Per-tier limits on archive size, files, AI findings, input tokens and USD per audit, plus a platform-wide daily AI cap that fails closed (`src/lib/config/plans.ts`, `src/lib/analysis/llm/provider.ts`).
 
-Honesty rules: untested categories show "Not assessed" (never a passing score); absence checks are labelled *suspected*; a recheck only marks a finding *fixed* if the scanner that found it ran again; a skipped, failed, or partial required scanner, a truncated extract, or any eligible source file that Semgrep and ESLint did not inspect, blocks a "launch ready" verdict. Languages outside that set are named and are not counted as inspected. OSV may be skipped only when the repository has no supported lockfile.
+Honesty rules: untested categories show "Not assessed" (never a passing score); absence checks are labelled *suspected*; a recheck marks a finding *fixed* only when the same file, dependency, or check was inspected again and the finding is gone, and otherwise marks it *not retested*; a finding is *regressed* only when it returns after a verified fix; a skipped, failed, or partial required scanner, a truncated extract, or any eligible source file that Semgrep and ESLint did not inspect, blocks a "launch ready" verdict. Languages outside that set are named and are not counted as inspected. OSV may be skipped only when the repository has no supported lockfile.
 
 ## Key files
 

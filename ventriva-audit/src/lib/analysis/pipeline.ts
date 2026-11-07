@@ -9,7 +9,7 @@ import { scanSecrets } from "./scanners/secrets";
 import { scanSemgrep } from "./scanners/semgrep";
 import { score, type Scorecard } from "./scoring";
 import { buildTickets, type Ticket } from "./tickets";
-import { finalize, type AiAssessment, type Coverage, type Finding, type Priority, type ScannerRun } from "./types";
+import { identifyFindings, legacyFingerprintOf, textIdentity, type Coverage, type Finding, type Priority, type RawFinding, type ScannerRun } from "./types";
 import type { IngestStats } from "./ingest";
 
 export interface PreviousFinding extends Finding {
@@ -26,8 +26,14 @@ export interface AnalyzeOptions {
   fetchImpl?: FetchLike;
   /** Findings from the audit being compared against (rechecks/monitoring). */
   previous?: PreviousFinding[];
-  /** Files changed since the previous audit's commit; AI re-triage is limited to these. */
-  changedFiles?: Set<string>;
+  /**
+   * Files changed since the previous audit's commit.
+   * null or omitted means the comparison failed or was incomplete: do not reuse AI assessments.
+   * An empty set means the comparison succeeded and nothing changed.
+   */
+  changedFiles?: ReadonlySet<string> | null;
+  /** Previous path to current path. Only trusted when the comparison succeeded. */
+  renames?: ReadonlyMap<string, string>;
   /** Skip Semgrep (tests / environments without the CLI). */
   disableSemgrep?: boolean;
 }
@@ -66,39 +72,141 @@ export function dedupe(findings: Finding[]): Finding[] {
   return [...map.values()];
 }
 
+interface IssueSide {
+  finding: Finding;
+  occurrence: number;
+}
+
+function issueSides(findings: Finding[]): IssueSide[] {
+  const groups = new Map<string, { finding: Finding; index: number }[]>();
+  findings.forEach((finding, index) => {
+    const key = textIdentity(finding);
+    const group = groups.get(key) ?? [];
+    group.push({ finding, index });
+    groups.set(key, group);
+  });
+  const occurrence = new Map<Finding, number>();
+  for (const group of groups.values()) {
+    group.sort((a, b) => (a.finding.startLine ?? 0) - (b.finding.startLine ?? 0) || a.index - b.index);
+    group.forEach((item, index) => occurrence.set(item.finding, index));
+  }
+  return findings.map((finding) => ({ finding, occurrence: occurrence.get(finding) ?? 0 }));
+}
+
+function sameIssue(current: IssueSide, previous: IssueSide, renames: ReadonlyMap<string, string>): boolean {
+  const left = current.finding;
+  const right = previous.finding;
+  if (left.fingerprint === right.fingerprint) return true;
+  if (legacyFingerprintOf(left) === right.fingerprint || legacyFingerprintOf(right) === left.fingerprint) return true;
+  if (left.ruleId !== right.ruleId) return false;
+  if (textIdentity(left) === textIdentity(right) && current.occurrence === previous.occurrence) return true;
+  const renamed = right.filePath ? renames.get(right.filePath) : undefined;
+  return Boolean(
+    renamed &&
+      left.filePath === renamed &&
+      textIdentity(left) === textIdentity(right, renamed) &&
+      current.occurrence === previous.occurrence,
+  );
+}
+
+/** The scanner finished and inspected this finding's file, dependency, or configuration. Partial coverage is not enough. */
+export function findingRetested(finding: Finding, scanners: ScannerRun[], renames: ReadonlyMap<string, string> = new Map()): boolean {
+  const run = scanners.find((scanner) => scanner.name === finding.source);
+  if (!run || run.status !== "ran") return false;
+  if (!finding.filePath) return true;
+  const path = renames.get(finding.filePath) ?? finding.filePath;
+  return run.inspectedFiles?.includes(path) ?? false;
+}
+
+function notRetested(previous: PreviousFinding, scanners: ScannerRun[]): Finding {
+  const { id: _id, ...rest } = previous;
+  const run = scanners.find((scanner) => scanner.name === previous.source);
+  const why = !run || run.status !== "ran"
+    ? `Not re-tested: the ${previous.source} scanner ${run ? `is ${run.status}` : "did not run"}.`
+    : `Not re-tested: the ${previous.source} scanner did not inspect ${previous.filePath ?? "the relevant source"}.`;
+  const method = rest.evidence.method.includes("Not re-tested:") ? rest.evidence.method : `${rest.evidence.method} (${why})`;
+  return { ...rest, change: "not_retested", evidence: { ...rest.evidence, method } };
+}
+
 /**
  * Compares current findings with a previous audit.
- * A previous finding is only marked "fixed" if the scanner that produced it ran successfully this time;
- * otherwise it is carried forward as unresolved (not re-tested), so fixes are never claimed without evidence.
+ * Fixed requires the same file, dependency, or configuration to have been inspected by a completed scanner.
+ * Regressed requires the same issue to have been verified fixed before. Anything else new is new.
  */
-export function compareWithPrevious(current: Finding[], previous: PreviousFinding[], scanners: ScannerRun[]): Finding[] {
-  const prevByFp = new Map(previous.map((p) => [p.fingerprint, p]));
-  const curFps = new Set(current.map((c) => c.fingerprint));
-  const ran = new Set(scanners.filter((s) => s.status === "ran").map((s) => s.name));
-  const out: Finding[] = current.map((c) => ({ ...c, change: prevByFp.has(c.fingerprint) ? "unresolved" : "regressed" }));
-  for (const p of previous) {
-    if (curFps.has(p.fingerprint) || p.change === "fixed") continue;
-    const { id: _id, ...rest } = p;
-    if (ran.has(p.source)) out.push({ ...rest, change: "fixed" });
-    else out.push({ ...rest, change: "unresolved", evidence: { ...p.evidence, method: `${p.evidence.method} (Not re-tested: the ${p.source} scanner did not run in this check.)` } });
+export function compareWithPrevious(
+  current: Finding[],
+  previous: PreviousFinding[],
+  scanners: ScannerRun[],
+  renames: ReadonlyMap<string, string> = new Map(),
+): Finding[] {
+  const currentSides = issueSides(current);
+  const previousSides = issueSides(previous);
+  const matched = new Set<IssueSide>();
+
+  function take(side: IssueSide, pass: (candidate: IssueSide) => boolean): IssueSide | undefined {
+    const found = previousSides.find((candidate) => !matched.has(candidate) && pass(candidate));
+    if (found) matched.add(found);
+    return found;
+  }
+
+  const out: Finding[] = currentSides.map((side) => {
+    const prior = take(side, (candidate) => sameIssue(side, candidate, renames));
+    if (!prior) return { ...side.finding, change: "new" };
+    return { ...side.finding, change: prior.finding.change === "fixed" ? "regressed" : "unresolved" };
+  });
+
+  for (const side of previousSides) {
+    if (matched.has(side)) continue;
+    if (side.finding.change === "fixed" && findingRetested(side.finding, scanners, renames)) continue;
+    if (findingRetested(side.finding, scanners, renames)) {
+      const { id: _id, ...rest } = side.finding as PreviousFinding;
+      out.push({ ...rest, change: "fixed" });
+    } else {
+      out.push(notRetested(side.finding, scanners));
+    }
   }
   return out;
+}
+
+/**
+ * Copies an AI note only when a completed diff shows the finding's file was not changed.
+ * A missing diff is not treated as an empty diff.
+ */
+export function reusePriorAssessments(
+  current: Finding[],
+  previous: PreviousFinding[],
+  changedFiles: ReadonlySet<string> | null | undefined,
+  renames: ReadonlyMap<string, string> = new Map(),
+): Finding[] {
+  if (changedFiles == null) return current;
+  const currentSides = issueSides(current);
+  const previousSides = issueSides(previous);
+  const matched = new Set<IssueSide>();
+  return currentSides.map((side) => {
+    const prior = previousSides.find((candidate) => !matched.has(candidate) && candidate.finding.ai && sameIssue(side, candidate, renames));
+    if (!prior?.finding.ai) return side.finding;
+    matched.add(prior);
+    const path = side.finding.filePath;
+    const renamed = prior.finding.filePath ? renames.has(prior.finding.filePath) : false;
+    const unchanged = path ? !changedFiles.has(path) && !renamed : changedFiles.size === 0 && renames.size === 0;
+    return unchanged ? { ...side.finding, ai: prior.finding.ai } : side.finding;
+  });
 }
 
 export async function analyzeRepository(repo: RepoIndex, opts: AnalyzeOptions): Promise<AnalysisResult> {
   const limits = LIMITS[opts.kind];
   const scanners: ScannerRun[] = [];
-  const raw: Finding[] = [];
+  const raw: RawFinding[] = [];
   const notes: string[] = [];
 
   const secrets = await scanSecrets(repo);
   scanners.push(secrets.run);
-  raw.push(...secrets.findings.map(finalize));
+  raw.push(...secrets.findings);
 
   try {
     const osv = await scanOsv(repo, opts.fetchImpl);
     scanners.push(osv.run);
-    raw.push(...osv.findings.map(finalize));
+    raw.push(...osv.findings);
   } catch (e) {
     scanners.push({ name: "osv", status: "failed", reason: (e as Error).message });
     notes.push("Dependency vulnerability lookup failed; dependencies were not assessed.");
@@ -107,21 +215,27 @@ export async function analyzeRepository(repo: RepoIndex, opts: AnalyzeOptions): 
   if (!opts.disableSemgrep) {
     const sg = await scanSemgrep(repo);
     scanners.push(sg.run);
-    raw.push(...sg.findings.map(finalize));
+    raw.push(...sg.findings);
   } else scanners.push({ name: "semgrep", status: "skipped", reason: "Disabled for this run." });
 
   if (limits.eslintEnabled) {
     const es = await scanEslint(repo);
     scanners.push(es.run);
-    raw.push(...es.findings.map(finalize));
+    raw.push(...es.findings);
   } else scanners.push({ name: "eslint", status: "skipped", reason: "Included in the full audit." });
 
   const readinessStarted = Date.now();
   const readiness = await runReadinessChecks(repo);
-  scanners.push({ name: "readiness", status: "ran", filesScanned: repo.files.length, durationMs: Date.now() - readinessStarted });
-  raw.push(...readiness.findings.map(finalize));
+  scanners.push({
+    name: "readiness",
+    status: "ran",
+    filesScanned: readiness.inspectedFiles.length,
+    inspectedFiles: readiness.inspectedFiles,
+    durationMs: Date.now() - readinessStarted,
+  });
+  raw.push(...readiness.findings);
 
-  let findings = dedupe(raw).sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
+  let findings = dedupe(identifyFindings(raw)).sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
 
   // Coverage is the union of eligible source files a code scanner positively inspected.
   // Languages outside the scanner set are named in the notes and are not treated as inspected or as eligible.
@@ -145,16 +259,8 @@ export async function analyzeRepository(repo: RepoIndex, opts: AnalyzeOptions): 
   if (unscanned.length) notes.push(`Code-level rules do not cover: ${unscanned.join(", ")}. Secrets, dependencies and readiness checks still ran where those files were present.`);
   if (inspected.length === 0) notes.push("No source file was positively inspected by Semgrep or ESLint.");
 
-  // Carry forward AI assessments for unchanged code (targeted rechecks).
-  if (opts.previous?.length) {
-    const prevAi = new Map<string, AiAssessment>();
-    for (const p of opts.previous) if (p.ai) prevAi.set(p.fingerprint, p.ai);
-    for (const f of findings) {
-      const unchanged = !f.filePath || !opts.changedFiles || !opts.changedFiles.has(f.filePath);
-      const prior = prevAi.get(f.fingerprint);
-      if (prior && unchanged) f.ai = prior;
-    }
-  }
+  // Carry forward AI assessments only when the diff proves the source is unchanged.
+  if (opts.previous?.length) findings = reusePriorAssessments(findings, opts.previous, opts.changedFiles, opts.renames ?? new Map());
 
   // AI triage (paid tiers only, hard budget)
   const budget = new Budget(limits.maxAiCostUsd, limits.maxInputTokens, opts.globalBudgetGuard);
@@ -168,7 +274,7 @@ export async function analyzeRepository(repo: RepoIndex, opts: AnalyzeOptions): 
   }
   if (aiNote) notes.push(aiNote);
 
-  if (opts.previous) findings = compareWithPrevious(findings, opts.previous, scanners);
+  if (opts.previous) findings = compareWithPrevious(findings, opts.previous, scanners, opts.renames ?? new Map());
 
   const scorecard = score(findings, readiness.checks, coverage);
   const tickets = limits.ticketsEnabled ? buildTickets(findings) : [];

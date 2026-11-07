@@ -683,23 +683,33 @@ async function maintainabilityChecks(ctx: Ctx): Promise<CheckResult[]> {
 export interface ReadinessResult {
   checks: CheckResult[];
   findings: RawFinding[];
+  /** Files this pass actually read. A finding outside this list was not retested. */
+  inspectedFiles: string[];
 }
 
 export async function runReadinessChecks(repo: RepoIndex): Promise<ReadinessResult> {
-  const pkgs = await readPackageJsons(repo);
+  const inspected = new Set<string>();
+  const tracked: RepoIndex = {
+    ...repo,
+    read: async (rel) => {
+      inspected.add(rel);
+      return repo.read(rel);
+    },
+  };
+  const pkgs = await readPackageJsons(tracked);
   const deps = allDependencies(pkgs);
-  for (const req of repo.match(/(^|\/)(requirements(-[a-z]+)?\.txt|pyproject\.toml|Gemfile)$/)) {
-    const text = await repo.read(req.path);
+  for (const req of tracked.match(/(^|\/)(requirements(-[a-z]+)?\.txt|pyproject\.toml|Gemfile)$/)) {
+    const text = await tracked.read(req.path);
     for (const m of text.matchAll(/^\s*["']?([A-Za-z0-9_.\-]+)/gm)) if (m[1]) deps.add(m[1].toLowerCase());
   }
-  const allCode = repo.files.filter((f) => CODE_RE.test(f.path) && !TEST_FILE_RE.test(f.path)).map((f) => f.path);
+  const allCode = tracked.files.filter((f) => CODE_RE.test(f.path) && !TEST_FILE_RE.test(f.path)).map((f) => f.path);
   const serverFiles: string[] = [];
   for (const p of allCode) {
-    const head = (await repo.read(p)).slice(0, 200);
+    const head = (await tracked.read(p)).slice(0, 200);
     if (!/^\s*["']use client["']/.test(head)) serverFiles.push(p);
   }
-  const ctx: Ctx = { repo, deps, pkgs, serverFiles, allCode };
-  const hasApi = repo.match(/(^|\/)(app\/.*\/route\.(ts|js)|pages\/api\/|api\/|server\/|routes\/)/).length > 0 || hasDep(ctx, "express", "fastify", "hono", "koa", "@nestjs/core", "django", "flask", "fastapi") !== null;
+  const ctx: Ctx = { repo: tracked, deps, pkgs, serverFiles, allCode };
+  const hasApi = tracked.match(/(^|\/)(app\/.*\/route\.(ts|js)|pages\/api\/|api\/|server\/|routes\/)/).length > 0 || hasDep(ctx, "express", "fastify", "hono", "koa", "@nestjs/core", "django", "flask", "fastapi") !== null;
 
   const auth = await authChecks(ctx);
   const billing = await billingChecks(ctx);
@@ -713,5 +723,5 @@ export async function runReadinessChecks(repo: RepoIndex): Promise<ReadinessResu
     ...(await testingChecks(ctx)),
     ...(await maintainabilityChecks(ctx)),
   ];
-  return { checks, findings: checks.flatMap((c) => (c.finding ? [c.finding] : [])) };
+  return { checks, findings: checks.flatMap((c) => (c.finding ? [c.finding] : [])), inspectedFiles: [...inspected].sort() };
 }
