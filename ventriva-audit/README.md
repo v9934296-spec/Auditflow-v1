@@ -71,7 +71,7 @@ Developer settings → GitHub Apps → New:
 4. Local testing: `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
 
 ### 5. Trigger.dev
-1. Create a project and set `TRIGGER_PROJECT_REF` and `TRIGGER_SECRET_KEY`.
+1. The project ref is `proj_wqqqzkzwsjhaepczqchl` in `trigger.config.ts`. Set `TRIGGER_SECRET_KEY` from the Trigger.dev development environment.
 2. In the Trigger.dev dashboard, add the worker's env vars: Supabase URL + service role key, GitHub App vars, `ANTHROPIC_API_KEY`, `DAILY_AI_SPEND_CAP_USD`, `STATE_SIGNING_SECRET`, and the remaining server vars (the worker validates the full server env).
 3. Local: `npm run trigger:dev`. Deploy: `npm run trigger:deploy` (the image installs Semgrep 1.183.0 and ships `semgrep-rules/`).
 
