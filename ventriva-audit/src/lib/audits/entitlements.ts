@@ -34,12 +34,6 @@ export async function consumeEntitlement(userId: string, kind: AuditKind): Promi
   return data as string;
 }
 
-export async function refundEntitlement(userId: string, consumed: string | null): Promise<void> {
-  if (!consumed || consumed === "monitor") return;
-  const { error } = await supabaseAdmin().rpc("refund_entitlement", { p_user_id: userId, p_consumed: consumed });
-  if (error) throw error;
-}
-
 export function canUse(e: EntitlementsRow, kind: AuditKind): boolean {
   const proActive = e.plan === "pro" && !!e.period_end && new Date(e.period_end) > new Date();
   switch (kind) {
