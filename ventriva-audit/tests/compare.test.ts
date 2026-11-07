@@ -126,6 +126,30 @@ describe("compareWithPrevious", () => {
     expect(unseen.map((f) => f.change)).toEqual(["new"]);
   });
 
+  it("keeps a verified fix across a later clean audit and classifies its return as regressed", () => {
+    const scanners = [run("ran", ["src/a.ts"])];
+    const vulnerability = current();
+
+    const detected = compareWithPrevious([vulnerability], [], scanners);
+    expect(detected).toHaveLength(1);
+    expect(detected[0]!.ruleId).toBe("semgrep.xss");
+    expect(detected[0]!.change).toBe("new");
+
+    const verifiedFixed = compareWithPrevious([], detected, scanners);
+    expect(verifiedFixed).toHaveLength(1);
+    expect(verifiedFixed[0]!.change).toBe("fixed");
+
+    const stillAbsent = compareWithPrevious([], verifiedFixed, scanners);
+    expect(stillAbsent).toHaveLength(1);
+    expect(stillAbsent[0]!.fingerprint).toBe(verifiedFixed[0]!.fingerprint);
+    expect(stillAbsent[0]!.change).toBe("fixed");
+
+    const returned = compareWithPrevious([vulnerability], stillAbsent, scanners);
+    expect(returned).toHaveLength(1);
+    expect(returned[0]!.ruleId).toBe("semgrep.xss");
+    expect(returned[0]!.change).toBe("regressed");
+  });
+
   it("does not reuse an AI assessment when the diff is missing or the file changed", () => {
     const prior = { ...historical(), ai: { verdict: "likely_false_positive" as const, confidence: "high" as const, explanation: "old", remediation: "ignore", model: "m" } };
     const cur = current();
