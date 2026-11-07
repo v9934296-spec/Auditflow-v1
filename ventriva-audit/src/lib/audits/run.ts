@@ -123,12 +123,14 @@ async function persist(audit: AuditRow, repo: RepositoryRow, sha: string, result
     .eq("id", audit.id);
   if (error) throw error;
 
-  // Alerts: new critical/high issues in rechecks & monitoring.
+  // Alert on new or returning P0/P1 findings in rechecks and monitoring.
   if (audit.kind === "monitor" || audit.kind === "recheck") {
-    const regressions = result.findings.filter((f) => f.change === "regressed" && (f.priority === "P0" || f.priority === "P1"));
-    if (regressions.length) {
+    const alertFindings = result.findings.filter(
+      (f) => (f.change === "new" || f.change === "regressed") && (f.priority === "P0" || f.priority === "P1"),
+    );
+    if (alertFindings.length) {
       await db.from("alerts").insert(
-        regressions.slice(0, 20).map((f) => ({ user_id: audit.user_id, repository_id: repo.id, audit_id: audit.id, severity: f.severity, message: `${f.priority}: ${f.title}` })),
+        alertFindings.slice(0, 20).map((f) => ({ user_id: audit.user_id, repository_id: repo.id, audit_id: audit.id, severity: f.severity, message: `${f.priority}: ${f.title}` })),
       );
     }
   }
