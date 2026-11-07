@@ -3,7 +3,7 @@ import { ABUSE, PRO, type AuditKind } from "@/lib/config/plans";
 import type { AuditRow, RepositoryRow } from "@/lib/db/types";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { runAuditTask } from "@/trigger/run-audit";
-import { consumeEntitlement, refundEntitlement } from "./entitlements";
+import { consumeEntitlement, ENTITLEMENT_MESSAGES, EntitlementError } from "./entitlements";
 
 export class AuditRequestError extends Error {
   constructor(message: string, readonly status = 400) {
@@ -38,13 +38,6 @@ export async function startAudit(userId: string, repositoryId: string, kind: Aud
   const { data: repo } = await db.from("repositories").select("*").eq("id", repositoryId).eq("user_id", userId).maybeSingle();
   if (!repo) throw new AuditRequestError("Repository not found.", 404);
 
-  const { count: active } = await db.from("audits").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["queued", "running"]);
-  if ((active ?? 0) >= ABUSE.maxConcurrentAudits) throw new AuditRequestError("An audit is already running. Wait for it to finish.", 429);
-
-  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { count: recent } = await db.from("audits").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", since);
-  if ((recent ?? 0) >= ABUSE.maxAuditsPerHour) throw new AuditRequestError("Too many audits in the last hour. Try again later.", 429);
-
   let previousAuditId: string | null = null;
   if (kind === "recheck") {
     const base = await latestBaseline(repositoryId);
@@ -52,30 +45,36 @@ export async function startAudit(userId: string, repositoryId: string, kind: Aud
     previousAuditId = base.id;
   }
 
-  const consumed = await consumeEntitlement(userId, kind);
-  return enqueue(userId, repo as RepositoryRow, kind, consumed, previousAuditId);
+  const { data, error } = await db.rpc("queue_user_audit", {
+    p_user_id: userId,
+    p_repository_id: repositoryId,
+    p_kind: kind,
+    p_previous_audit_id: previousAuditId,
+    p_rechecks_per_period: PRO.rechecksPerPeriod,
+    p_max_concurrent: ABUSE.maxConcurrentAudits,
+    p_max_per_hour: ABUSE.maxAuditsPerHour,
+  }).single();
+  if (error) {
+    if (error.message === "AUDIT_ALREADY_RUNNING") throw new AuditRequestError("An audit is already running. Wait for it to finish.", 429);
+    if (error.message === "AUDIT_HOURLY_LIMIT") throw new AuditRequestError("Too many audits in the last hour. Try again later.", 429);
+    if (Object.hasOwn(ENTITLEMENT_MESSAGES, error.message)) throw new EntitlementError(error.message);
+    throw error;
+  }
+  const audit = data as AuditRow;
+  await dispatchAudit(audit);
+  return audit;
 }
 
-async function enqueue(userId: string, repo: RepositoryRow, kind: AuditKind, consumed: string, previousAuditId: string | null): Promise<AuditRow> {
-  const db = supabaseAdmin();
-  const { data: audit, error } = await db
-    .from("audits")
-    .insert({ user_id: userId, repository_id: repo.id, kind, status: "queued", credit_consumed: consumed, previous_audit_id: previousAuditId })
-    .select("*")
-    .single();
-  if (error || !audit) {
-    await refundEntitlement(userId, consumed);
-    throw error ?? new Error("Could not create audit.");
-  }
+async function dispatchAudit(audit: AuditRow): Promise<void> {
   try {
-    const handle = await tasks.trigger<typeof runAuditTask>("run-audit", { auditId: audit.id as string }, { idempotencyKey: `audit-${audit.id as string}`, tags: [`user_${userId}`, `kind_${kind}`] });
-    await db.from("audits").update({ trigger_run_id: handle.id }).eq("id", audit.id);
+    const handle = await tasks.trigger<typeof runAuditTask>("run-audit", { auditId: audit.id }, { idempotencyKey: `audit-${audit.id}`, tags: [`user_${audit.user_id}`, `kind_${audit.kind}`] });
+    const { error } = await supabaseAdmin().from("audits").update({ trigger_run_id: handle.id }).eq("id", audit.id);
+    if (error) throw error;
   } catch (e) {
-    await db.from("audits").update({ status: "failed", error: "Could not queue the audit. Your credit has been refunded." }).eq("id", audit.id);
-    await refundEntitlement(userId, consumed);
-    throw e;
+    // A lost response may mean Trigger.dev accepted the job. Let it run if it
+    // did, or let the stale-audit task release the credit if it never starts.
+    console.error("Could not confirm audit dispatch", audit.id, e);
   }
-  return audit as AuditRow;
 }
 
 /** Push-triggered monitoring scan (Pro). Rate-limited per repository. */
@@ -101,6 +100,11 @@ export async function maybeStartMonitorScan(repo: RepositoryRow, pushedBranch: s
     .or(`last_monitor_scan_at.is.null,last_monitor_scan_at.lt.${new Date(Date.now() - PRO.monitorMinIntervalMs).toISOString()}`)
     .select("id");
   if (!claimed?.length) return "skipped";
-  await enqueue(repo.user_id, repo, "monitor", consumed, base.id);
+  const { data: audit, error } = await db.from("audits")
+    .insert({ user_id: repo.user_id, repository_id: repo.id, kind: "monitor", status: "queued", credit_consumed: consumed, previous_audit_id: base.id })
+    .select("*")
+    .single();
+  if (error) throw error;
+  await dispatchAudit(audit as AuditRow);
   return "started";
 }

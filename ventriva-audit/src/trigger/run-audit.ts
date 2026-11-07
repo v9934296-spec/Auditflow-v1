@@ -1,5 +1,6 @@
-import { AbortTaskRunError, logger, task } from "@trigger.dev/sdk";
+import { AbortTaskRunError, logger, schedules, task } from "@trigger.dev/sdk";
 import { failAudit, PermanentAuditError, runAudit } from "@/lib/audits/run";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /**
  * Isolated analysis worker. Runs on Trigger.dev machines, never on the web server.
@@ -25,5 +26,15 @@ export const runAuditTask = task({
   },
   onFailure: async ({ payload, error }) => {
     await failAudit(payload.auditId, error);
+  },
+});
+
+export const recoverStaleAuditsTask = schedules.task({
+  id: "recover-stale-audits",
+  cron: "0 * * * *",
+  run: async () => {
+    const { data: recovered, error } = await supabaseAdmin().rpc("recover_stale_audits");
+    if (error) throw error;
+    return { recovered };
   },
 });

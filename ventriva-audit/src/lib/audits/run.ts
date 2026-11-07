@@ -8,7 +8,6 @@ import type { AuditRow, FindingRow, RepositoryRow } from "@/lib/db/types";
 import { serverEnv } from "@/lib/env";
 import { commitComparison, downloadTarball, repoScopedToken, resolveHeadSha } from "@/lib/github/app";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { refundEntitlement } from "./entitlements";
 
 /** Errors the user can act on; the run is not retried. */
 export class PermanentAuditError extends Error {
@@ -70,7 +69,7 @@ export function findingToRow(f: Finding, auditId: string, userId: string, detail
   };
 }
 
-async function persist(audit: AuditRow, repo: RepositoryRow, sha: string, result: AnalysisResult): Promise<void> {
+async function persist(audit: AuditRow, repo: RepositoryRow, sha: string, result: AnalysisResult): Promise<boolean> {
   const db = supabaseAdmin();
   const limits = LIMITS[audit.kind];
   const detailLimit = limits.detailedFindingsLimit;
@@ -103,7 +102,7 @@ async function persist(audit: AuditRow, repo: RepositoryRow, sha: string, result
   }
 
   const { categories, readiness, counts, coverageNote } = result.scorecard;
-  const { error } = await db
+  const { data: completed, error } = await db
     .from("audits")
     .update({
       status: "completed",
@@ -120,8 +119,12 @@ async function persist(audit: AuditRow, repo: RepositoryRow, sha: string, result
       completed_at: new Date().toISOString(),
       error: null,
     })
-    .eq("id", audit.id);
+    .eq("id", audit.id)
+    .eq("status", "running")
+    .select("id")
+    .maybeSingle();
   if (error) throw error;
+  if (!completed) return false;
 
   // Alert on new or returning P0/P1 findings in rechecks and monitoring.
   if (audit.kind === "monitor" || audit.kind === "recheck") {
@@ -134,17 +137,21 @@ async function persist(audit: AuditRow, repo: RepositoryRow, sha: string, result
       );
     }
   }
+  return true;
 }
 
 export async function runAudit(auditId: string): Promise<{ status: "completed" | "skipped"; score?: number | null }> {
   const db = supabaseAdmin();
   const env = serverEnv();
-  const { data: auditData, error } = await db.from("audits").select("*").eq("id", auditId).single();
+  const { data: auditData, error } = await db.from("audits")
+    .update({ status: "running", started_at: new Date().toISOString() })
+    .eq("id", auditId)
+    .in("status", ["queued", "running"])
+    .select("*")
+    .maybeSingle();
   if (error) throw error;
+  if (!auditData) return { status: "skipped" };
   const audit = auditData as AuditRow;
-  if (audit.status === "completed" || audit.status === "failed") return { status: "skipped" };
-
-  await db.from("audits").update({ status: "running", started_at: new Date().toISOString() }).eq("id", auditId);
 
   const { data: repoData, error: repoErr } = await db.from("repositories").select("*").eq("id", audit.repository_id).single();
   if (repoErr) throw repoErr;
@@ -191,7 +198,7 @@ export async function runAudit(auditId: string): Promise<{ status: "completed" |
       return Number(spent) + estimateUsd <= env.DAILY_AI_SPEND_CAP_USD;
     };
     const result = await analyzeRepository(index, { kind: audit.kind, ingest: workspace.stats, provider, globalBudgetGuard, previous, changedFiles: changed, renames });
-    await persist(audit, repo, sha, result);
+    if (!(await persist(audit, repo, sha, result))) return { status: "skipped" };
     if (audit.kind === "monitor") await db.from("repositories").update({ last_monitor_scan_at: new Date().toISOString() }).eq("id", repo.id);
     return { status: "completed", score: result.scorecard.overall };
   } finally {
@@ -199,12 +206,9 @@ export async function runAudit(auditId: string): Promise<{ status: "completed" |
   }
 }
 
-/** Called once retries are exhausted (or on a permanent error). */
+/** Safe to call again when a permanent failure also reaches the final failure hook. */
 export async function failAudit(auditId: string, err: unknown): Promise<void> {
-  const db = supabaseAdmin();
-  const { data } = await db.from("audits").select("user_id, credit_consumed, status").eq("id", auditId).single();
-  if (!data || data.status === "completed") return;
-  const message = err instanceof PermanentAuditError ? err.message : "The audit failed due to a system error. Your credit has been refunded.";
-  await db.from("audits").update({ status: "failed", error: message, completed_at: new Date().toISOString() }).eq("id", auditId);
-  await refundEntitlement(data.user_id as string, (data.credit_consumed as string | null) ?? null);
+  const message = err instanceof PermanentAuditError ? err.message : "The audit failed due to a system error. You can start a new scan.";
+  const { error } = await supabaseAdmin().rpc("fail_audit", { p_audit_id: auditId, p_error: message });
+  if (error) throw error;
 }

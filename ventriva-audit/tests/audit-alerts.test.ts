@@ -18,7 +18,6 @@ vi.mock("@/lib/github/app", () => ({
   downloadTarball: vi.fn(),
 }));
 vi.mock("@/lib/supabase/admin", () => ({ supabaseAdmin: vi.fn() }));
-vi.mock("@/lib/audits/entitlements", () => ({ refundEntitlement: vi.fn() }));
 
 it.each(["monitor", "recheck", "full_audit"] as const)("persists eligible alerts for a %s audit", async (kind) => {
   const findings: Finding[] = ([
@@ -52,10 +51,10 @@ it.each(["monitor", "recheck", "full_audit"] as const)("persists eligible alerts
   const audit = { id: "audit", user_id: "user", repository_id: "repo", status: "queued", kind };
   const repo = { id: "repo" };
   const from = vi.fn((table: string) => {
-    const deleteOrUpdate = () => ({ eq: () => Promise.resolve({ error: null }) });
+    const selectedAudit = { select: () => ({ maybeSingle: () => ({ data: audit, error: null }) }) };
     return {
-      delete: deleteOrUpdate,
-      update: deleteOrUpdate,
+      delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
+      update: () => ({ eq: () => ({ in: () => selectedAudit, eq: () => selectedAudit }) }),
       select: () => ({ eq: () => ({ single: () => ({ data: table === "audits" ? audit : repo }) }) }),
       insert: table === "alerts" ? insertAlerts : () => ({ select: () => ({ data: [], error: null }) }),
     };
