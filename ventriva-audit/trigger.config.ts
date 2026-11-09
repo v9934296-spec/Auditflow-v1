@@ -2,9 +2,6 @@ import { defineConfig } from "@trigger.dev/sdk";
 import type { BuildExtension } from "@trigger.dev/build";
 import { additionalFiles } from "@trigger.dev/build/extensions/core";
 
-const projectRef = process.env.TRIGGER_PROJECT_REF;
-if (!projectRef) throw new Error("TRIGGER_PROJECT_REF is required (find it in your Trigger.dev project settings).");
-
 /** Installs a pinned Semgrep CLI into the worker image. Semgrep never executes scanned code. */
 function semgrep(version: string): BuildExtension {
   return {
@@ -25,7 +22,7 @@ function semgrep(version: string): BuildExtension {
 }
 
 export default defineConfig({
-  project: projectRef,
+  project: "proj_wqqqzkzwsjhaepczqchl",
   runtime: "node",
   dirs: ["./src/trigger"],
   maxDuration: 900,
