@@ -14,17 +14,27 @@ export class AuditRequestError extends Error {
 
 const USER_KINDS: AuditKind[] = ["free_scan", "full_audit", "recheck"];
 
+export const BASELINE_KINDS = ["full_audit", "recheck", "monitor"] as const;
+
+/** Latest completed full audit, recheck, or monitoring audit. Free scans and failures are not baselines. */
+export function selectLatestBaseline<T extends { status: string; kind: string; completed_at: string | null }>(rows: readonly T[]): T | null {
+  let best: T | null = null;
+  for (const row of rows) {
+    if (row.status !== "completed" || !row.completed_at) continue;
+    if (!(BASELINE_KINDS as readonly string[]).includes(row.kind)) continue;
+    if (!best || row.completed_at > best.completed_at!) best = row;
+  }
+  return best;
+}
+
 async function latestBaseline(repositoryId: string): Promise<AuditRow | null> {
   const { data } = await supabaseAdmin()
     .from("audits")
     .select("*")
     .eq("repository_id", repositoryId)
     .eq("status", "completed")
-    .in("kind", ["full_audit", "recheck", "monitor"])
-    .order("completed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return (data as AuditRow | null) ?? null;
+    .in("kind", [...BASELINE_KINDS]);
+  return selectLatestBaseline((data ?? []) as AuditRow[]);
 }
 
 /**

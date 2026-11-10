@@ -78,7 +78,11 @@ export function ticketForFinding(f: Finding): Ticket {
     "",
     "## Problem",
     f.description,
-    ...(f.change === "not_retested" ? ["", "This finding was not retested. It is not a verified fix."] : []),
+    ...(f.change === "not_retested"
+      ? ["", f.evidence.facts?.verifiedFix === true
+        ? "This finding was previously verified fixed, but this scan did not re-test it. Do not treat this run as a new confirmation of the fix."
+        : "This finding was not retested. It is not a verified fix."]
+      : []),
     ...(f.change === "regressed" ? ["", "This finding was previously verified as fixed and has been detected again."] : []),
     "",
     "## Evidence",
