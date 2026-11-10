@@ -100,6 +100,6 @@ Set `SEMGREP_ENABLE_VERSION_CHECK=0` locally, or Semgrep can stall for over a mi
 - Readiness detectors are strongest for JS/TS (Next.js, Supabase, Stripe). Python gets secrets, dependency and Semgrep coverage only.
 - Pattern checks can match inside string literals (e.g. docs that mention `auth.getSession()`). AI may label those as likely false positives. That label does not change the official score, verdict, or ticket. The AI executive summary can still omit the finding from its narrative.
 - Regression alerts appear on the dashboard only; there is no email delivery yet.
-- Stripe refunds (`charge.refunded`) don't claw back unused audit credits.
+- Stripe refunds (`charge.refunded`) don't claw back unused audit credits. One-time audit credits are granted by `fulfill_audit_checkout` (see `docs/stripe-fulfillment.md`).
 - Architecture and performance are reported as "Not assessed" in rubric `2026.11-v1`.
 - `/terms` and `/privacy` are templates; have them reviewed before launch.
