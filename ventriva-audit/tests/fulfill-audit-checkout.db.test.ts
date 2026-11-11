@@ -2,27 +2,35 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
-
-const ADMIN_URL = process.env.AUDITFLOW_TEST_ADMIN_URL ?? "postgres://postgres@127.0.0.1:54329/postgres";
-const DB_NAME = "auditflow_fulfill_test";
-const databaseUrl = process.env.AUDITFLOW_TEST_DATABASE_URL ?? ADMIN_URL.replace(/\/postgres$/, `/${DB_NAME}`);
+import { assertMaintenanceConnection, createIsolatedDatabaseName, resolveDisposableDatabase, type DisposableDatabase } from "./helpers/disposable-db";
 
 const USER = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
 
 describe("fulfill_audit_checkout (postgres)", () => {
   let pool: pg.Pool;
+  let target: DisposableDatabase;
 
   beforeAll(async () => {
-    const admin = new pg.Client({ connectionString: ADMIN_URL });
+    target = resolveDisposableDatabase({
+      AUDITFLOW_TEST_ADMIN_URL: process.env["AUDITFLOW_TEST_ADMIN_URL"],
+      AUDITFLOW_TEST_DATABASE_URL: process.env["AUDITFLOW_TEST_DATABASE_URL"],
+    }, createIsolatedDatabaseName());
+    const admin = new pg.Client({ connectionString: target.adminUrl });
     await admin.connect();
-    await admin.query(`select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()`, [DB_NAME]);
-    await admin.query(`drop database if exists ${DB_NAME}`);
-    await admin.query(`create database ${DB_NAME}`);
+    const connected = await admin.query<{ db: string }>(`select current_database() as db`);
+    assertMaintenanceConnection(connected.rows[0]!.db, target);
+    const ident = await admin.query<{ ident: string }>(`select format('%I', $1::text) as ident`, [target.databaseName]);
+    if (ident.rows[0]!.ident !== target.databaseName) throw new Error("refusing to interpolate an unexpected database identifier");
+    await admin.query(`select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()`, [target.databaseName]);
+    await admin.query(`drop database if exists ${target.databaseName}`);
+    await admin.query(`create database ${target.databaseName}`);
     await admin.end();
 
-    const setup = new pg.Client({ connectionString: databaseUrl });
+    const setup = new pg.Client({ connectionString: target.databaseUrl });
     await setup.connect();
+    const opened = await setup.query<{ db: string }>(`select current_database() as db`);
+    if (opened.rows[0]!.db !== target.databaseName) throw new Error(`opened ${opened.rows[0]!.db} instead of ${target.databaseName}`);
     await setup.query(`
       create schema if not exists auth;
       create table auth.users (id uuid primary key, email text);
@@ -40,11 +48,19 @@ describe("fulfill_audit_checkout (postgres)", () => {
     }
     await setup.query(`insert into auth.users (id, email) values ($1, 'buyer@example.com'), ($2, 'other@example.com')`, [USER, OTHER]);
     await setup.end();
-    pool = new pg.Pool({ connectionString: databaseUrl });
+    pool = new pg.Pool({ connectionString: target.databaseUrl });
   }, 60_000);
 
   afterAll(async () => {
     await pool?.end();
+    if (!target) return;
+    const admin = new pg.Client({ connectionString: target.adminUrl });
+    await admin.connect();
+    const connected = await admin.query<{ db: string }>(`select current_database() as db`);
+    assertMaintenanceConnection(connected.rows[0]!.db, target);
+    await admin.query(`select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()`, [target.databaseName]);
+    await admin.query(`drop database if exists ${target.databaseName}`);
+    await admin.end();
   });
 
   async function credits(user = USER): Promise<number> {

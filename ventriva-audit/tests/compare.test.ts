@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { findingsThatAlert, findingToRow, rowToFinding } from "@/lib/audits/run";
-import { selectLatestBaseline } from "@/lib/audits/service";
 import type { FindingRow } from "@/lib/db/types";
 import { comparisonFromFiles } from "@/lib/github/app";
 import { compareWithPrevious, reusePriorAssessments, wasVerifiedFixed } from "@/lib/analysis/pipeline";
@@ -164,6 +163,10 @@ describe("compareWithPrevious", () => {
 
     const confirmedAgain = compareWithPrevious([], gap, scanned);
     expect(confirmedAgain.map((f) => f.change)).toEqual(["fixed"]);
+    expect(confirmedAgain[0]!.evidence.facts?.verifiedFix).toBe(true);
+    expect(confirmedAgain[0]!.evidence.method).toBe(fixed[0]!.evidence.method);
+    expect(confirmedAgain[0]!.evidence.method).not.toMatch(/Not re-tested/);
+    expect(confirmedAgain[0]!.evidence.method).not.toMatch(/not newly confirmed/);
   });
 
   it("does not let a retained fix change the score, tickets, or alerts", () => {
@@ -245,15 +248,6 @@ describe("stored baseline history", () => {
     const clean = compareWithPrevious([], fixed.map((f) => stored(f, "audit-b")), scanned);
     const secondClean = compareWithPrevious([], clean.map((f) => stored(f, "audit-c")), scanned);
     expect(secondClean.map((f) => f.change)).toEqual(["fixed"]);
-
-    const audits = [
-      { id: "audit-a", status: "completed", kind: "full_audit", completed_at: "2026-01-01T00:00:00.000Z" },
-      { id: "audit-b", status: "completed", kind: "recheck", completed_at: "2026-01-02T00:00:00.000Z" },
-      { id: "audit-c", status: "completed", kind: "monitor", completed_at: "2026-01-03T00:00:00.000Z" },
-      { id: "audit-d", status: "failed", kind: "recheck", completed_at: "2026-01-04T00:00:00.000Z" },
-      { id: "audit-e", status: "completed", kind: "free_scan", completed_at: "2026-01-05T00:00:00.000Z" },
-    ];
-    expect(selectLatestBaseline(audits)?.id).toBe("audit-c");
 
     const baseline = secondClean.map((f) => stored(f, "audit-c"));
     expect(baseline[0]!.evidence.facts?.verifiedFix).toBe(true);

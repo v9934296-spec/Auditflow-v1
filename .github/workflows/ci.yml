@@ -9,6 +9,20 @@ jobs:
     defaults:
       run:
         working-directory: ventriva-audit
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,7 +36,15 @@ jobs:
       - run: pip install semgrep==1.183.0
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+      - run: npm run test:unit
         env:
           SEMGREP_ENABLE_VERSION_CHECK: "0"
+      - name: Install PostgREST
+        run: |
+          curl -fsSL -o /tmp/postgrest.tar.xz https://github.com/PostgREST/postgrest/releases/download/v16.5/postgrest-v16.5-linux-static-x86-64.tar.xz
+          tar -xJf /tmp/postgrest.tar.xz -C /tmp
+          echo "POSTGREST_BIN=/tmp/postgrest" >> "$GITHUB_ENV"
+      - run: npm run test:integration
+        env:
+          AUDITFLOW_TEST_ADMIN_URL: postgres://postgres@127.0.0.1:5432/postgres
       - run: npm run build
