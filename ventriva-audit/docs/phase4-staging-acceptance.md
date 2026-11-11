@@ -265,7 +265,11 @@ These results prove migration SQL behavior in disposable Postgres. They do **not
 
 ### Final commit / CI for this branch
 
-Recorded at PR time (see PR body / Actions for the branch head SHA and CI URL after push).
+| Item | Value |
+|---|---|
+| Report commit (initial) | `b87b35b` — may be amended if CI URL is appended below after the Actions run completes |
+| Branch | `test/phase4-staging-acceptance` |
+| CI URL | pending first Actions run on this branch (updated once green) |
 
 ---
 
