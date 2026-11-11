@@ -126,7 +126,11 @@ export function ticketForFinding(f: Finding): Ticket {
 
 /** Builds tickets for actionable findings, sorted P0 → P3. Dependency advisories are grouped per package. */
 export function buildTickets(findings: Finding[]): Ticket[] {
-  const actionable = findings.filter((f) => f.change !== "fixed" && (f.severity !== "info" || f.evidence.facts?.severityUncertain === true));
+  const actionable = findings.filter((f) =>
+    f.change !== "fixed" &&
+    !(f.change === "not_retested" && f.evidence.facts?.verifiedFix === true) &&
+    (f.severity !== "info" || f.evidence.facts?.severityUncertain === true),
+  );
   const osvByPkg = new Map<string, Finding[]>();
   const others: Finding[] = [];
   for (const f of actionable) {
