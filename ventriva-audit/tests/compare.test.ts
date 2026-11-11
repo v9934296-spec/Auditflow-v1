@@ -187,6 +187,16 @@ describe("compareWithPrevious", () => {
     expect(score(fixed, [], coverage).counts.P0).toBe(0);
     expect(buildTickets(fixed)).toHaveLength(0);
     expect(findingsThatAlert(fixed)).toHaveLength(0);
+
+    const untested = compareWithPrevious([], fixed, [run("skipped")]);
+    expect(untested[0]!.change).toBe("not_retested");
+    expect(untested[0]!.evidence.facts?.verifiedFix).toBe(true);
+    const untestedCard = score(untested, [], coverage);
+    expect(untestedCard.counts.P0).toBe(0);
+    expect(untestedCard.overall).toBeNull();
+    expect(untestedCard.verdict).toBe("insufficient_coverage");
+    expect(buildTickets(untested)).toHaveLength(0);
+    expect(findingsThatAlert(untested)).toHaveLength(0);
     expect(findingsThatAlert([{ ...fixed[0]!, change: "regressed" }])).toHaveLength(1);
   });
 
