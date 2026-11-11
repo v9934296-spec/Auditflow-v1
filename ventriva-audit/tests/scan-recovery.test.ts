@@ -42,12 +42,19 @@ it("keeps the reserved audit available when the dispatch response is lost", asyn
 });
 
 it("skips a delayed job when the audit has already been recovered", async () => {
-  const update = vi.fn(() => ({
-    eq: () => ({ in: () => ({ select: () => ({ maybeSingle: () => ({ data: null, error: null }) }) }) }),
-  }));
+  const filters: [string, string][] = [];
+  const claim = {
+    eq(column: string, value: string) {
+      filters.push([column, value]);
+      return claim;
+    },
+    select: () => ({ maybeSingle: () => ({ data: null, error: null }) }),
+  };
+  const update = vi.fn(() => claim);
   const from = vi.fn(() => ({ update }));
   vi.mocked(supabaseAdmin).mockReturnValue({ from } as unknown as ReturnType<typeof supabaseAdmin>);
 
   await expect(runAudit("audit")).resolves.toEqual({ status: "skipped" });
   expect(from).toHaveBeenCalledExactlyOnceWith("audits");
+  expect(filters).toEqual([["id", "audit"], ["status", "queued"]]);
 });
