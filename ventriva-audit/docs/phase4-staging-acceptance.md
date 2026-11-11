@@ -267,9 +267,11 @@ These results prove migration SQL behavior in disposable Postgres. They do **not
 
 | Item | Value |
 |---|---|
-| Report commit (initial) | `b87b35b` — may be amended if CI URL is appended below after the Actions run completes |
-| Branch | `test/phase4-staging-acceptance` |
-| CI URL | pending first Actions run on this branch (updated once green) |
+| Final report commit | see tip of `test/phase4-staging-acceptance` after this document lands (`git rev-parse HEAD` at push time recorded in §E update below) |
+| Ticket branch | `test/phase4-staging-acceptance` |
+| Mirror branch (cloud naming) | `cursor/phase4-staging-acceptance-420e` (same commits) |
+| GitHub CI URL | **Not started.** Root workflow `.github/workflows/ci.yml` triggers only on `pull_request` and `push` to `main`. Branch pushes alone do not run CI. |
+| Pull request | **BLOCKED** — `ManagePullRequest` refused for this run: Origin source-of-truth lookup failed (`prisma.repository.findFirst` / ENOENT `system`). Agent policy forbids opening the PR via `gh` after that refusal. Manual PR links: [test branch](https://github.com/v9934296-spec/Auditflow-v1/pull/new/test/phase4-staging-acceptance), [cursor branch](https://github.com/v9934296-spec/Auditflow-v1/pull/new/cursor/phase4-staging-acceptance-420e). |
 
 ---
 
@@ -288,6 +290,7 @@ This ticket remains **incomplete**. This report is evidence collection + blocker
 3. **Staging target separation unverified** for Trigger.dev environment, GitHub App, Stripe account/prices/webhook, and Anthropic spend limits (cannot confirm non-production before writes/paid calls).
 4. **Supabase staging schema for `0005` unverified** — cannot inspect `audit_credit_fulfillments` / `fulfill_audit_checkout` / RLS/privileges; cannot safely apply `0005` without confirmed target + credentials.
 5. **No ability to complete Auth, GitHub install, worker dispatch, checkout, or AI** against staging without the above.
+6. **GitHub CI on the final commit not obtainable in this run** — workflow requires a pull request (or push to `main`), and `ManagePullRequest` refused with an Origin source-of-truth lookup failure; agent policy forbids creating the PR via `gh` after that refusal.
 
 ### Safe work completed despite blockers
 
@@ -299,4 +302,6 @@ This ticket remains **incomplete**. This report is evidence collection + blocker
 
 ### Resume conditions
 
-Provide staging-only credentials and confirmed target identifiers (Vercel URL + SHA, Supabase project confirmation + whether `0005` is applied, Trigger staging env + worker revision, GitHub App, Stripe test prices/webhook, Anthropic staging key/limits). Re-run sections 2–9 against those targets; update this document; require green GitHub CI on the final commit before any GO / CONDITIONAL GO.
+1. Provide staging-only credentials and confirmed target identifiers (Vercel URL + SHA, Supabase project confirmation + whether `0005` is applied, Trigger staging env + worker revision, GitHub App, Stripe test prices/webhook, Anthropic staging key/limits).
+2. Open a PR from `test/phase4-staging-acceptance` (or `cursor/phase4-staging-acceptance-420e`) so Actions can run, or fix `ManagePullRequest` SoT lookup so the agent can open it.
+3. Re-run sections 2–9 against those targets; update this document; require green GitHub CI on the final commit before any GO / CONDITIONAL GO.
