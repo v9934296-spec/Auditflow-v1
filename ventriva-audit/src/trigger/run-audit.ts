@@ -10,7 +10,8 @@ export const runAuditTask = task({
   id: "run-audit",
   maxDuration: 900,
   queue: { concurrencyLimit: 5 },
-  retry: { maxAttempts: 2 },
+  // No automatic replay until execution attempts have exclusive ownership.
+  retry: { maxAttempts: 1 },
   run: async (payload: { auditId: string }) => {
     try {
       const result = await runAudit(payload.auditId);
