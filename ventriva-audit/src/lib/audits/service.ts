@@ -1,4 +1,5 @@
 import { tasks } from "@trigger.dev/sdk";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { ABUSE, PRO, type AuditKind } from "@/lib/config/plans";
 import type { AuditRow, RepositoryRow } from "@/lib/db/types";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -13,17 +14,27 @@ export class AuditRequestError extends Error {
 }
 
 const USER_KINDS: AuditKind[] = ["free_scan", "full_audit", "recheck"];
+const BASELINE_KINDS = ["full_audit", "recheck", "monitor"] as const;
 
-async function latestBaseline(repositoryId: string): Promise<AuditRow | null> {
-  const { data } = await supabaseAdmin()
+/**
+ * Latest completed full audit, recheck, or monitoring audit.
+ * PostgREST caps an unordered read, so the database orders and returns one row.
+ * Equal completion times use created_at, then id, so the result does not depend on page order.
+ */
+export async function latestBaseline(repositoryId: string, db: SupabaseClient = supabaseAdmin()): Promise<AuditRow | null> {
+  const { data, error } = await db
     .from("audits")
     .select("*")
     .eq("repository_id", repositoryId)
     .eq("status", "completed")
-    .in("kind", ["full_audit", "recheck", "monitor"])
-    .order("completed_at", { ascending: false })
+    .in("kind", [...BASELINE_KINDS])
+    .not("completed_at", "is", null)
+    .order("completed_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (error) throw error;
   return (data as AuditRow | null) ?? null;
 }
 

@@ -4,6 +4,9 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { stripe } from "./stripe";
 
 const ACTIVE = new Set(["active", "trialing", "past_due"]);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export type StripeHandlingResult = "processed" | "duplicate" | "ignored" | "unreconciled";
 
 async function userIdForCustomer(customerId: string): Promise<string | null> {
   const { data } = await supabaseAdmin().from("profiles").select("id").eq("stripe_customer_id", customerId).maybeSingle();
@@ -52,20 +55,39 @@ export async function syncSubscription(sub: Stripe.Subscription): Promise<void> 
   if (!active) await db.from("repositories").update({ monitoring_enabled: false }).eq("user_id", userId);
 }
 
-async function grantAuditFromSession(session: Stripe.Checkout.Session): Promise<void> {
-  if (session.mode !== "payment" || session.payment_status !== "paid" || session.metadata?.kind !== "audit") return;
-  const userId = session.metadata.user_id ?? session.client_reference_id;
-  if (!userId) throw new Error(`Checkout ${session.id} has no user`);
-  const { error } = await supabaseAdmin().rpc("grant_audit_credit", { p_user_id: userId, p_count: 1 });
-  if (error) throw error;
+function checkoutSession(event: Stripe.Event): Stripe.Checkout.Session | null {
+  if (event.type !== "checkout.session.completed" && event.type !== "checkout.session.async_payment_succeeded") return null;
+  return event.data.object;
 }
 
 /**
- * Processes one verified Stripe event exactly once.
- * The event id is recorded FIRST (unique constraint) and removed again if processing fails,
- * so Stripe's retry can re-run it.
+ * One-time audit purchases are fulfilled inside fulfill_audit_checkout.
+ * That function commits the session fulfillment row, the credit, and the event id together.
  */
-export async function handleStripeEvent(event: Stripe.Event): Promise<"processed" | "duplicate" | "ignored"> {
+async function fulfillPaymentSession(event: Stripe.Event, session: Stripe.Checkout.Session): Promise<StripeHandlingResult> {
+  const rawUser = session.metadata?.user_id ?? session.client_reference_id ?? "";
+  const userId = UUID.test(rawUser) ? rawUser : null;
+  const { data, error } = await supabaseAdmin().rpc("fulfill_audit_checkout", {
+    p_event_id: event.id,
+    p_event_type: event.type,
+    p_session_id: session.id,
+    p_user_id: userId,
+    p_mode: session.mode,
+    p_payment_status: session.payment_status,
+    p_kind: session.metadata?.kind ?? null,
+  });
+  if (error) throw error;
+  if (data === "granted") return "processed";
+  if (data === "duplicate") return "duplicate";
+  if (data === "unreconciled") return "unreconciled";
+  return "ignored";
+}
+
+/**
+ * Subscription events still use event-id idempotency. A failed attempt deletes the
+ * event row so Stripe can retry. Audit-credit purchases do not use this path.
+ */
+async function processTrackedEvent(event: Stripe.Event): Promise<StripeHandlingResult> {
   const db = supabaseAdmin();
   const { error: dupErr } = await db.from("stripe_events").insert({ id: event.id, type: event.type });
   if (dupErr) {
@@ -77,8 +99,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<"processed
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object;
-        if (session.mode === "payment") await grantAuditFromSession(session);
-        else if (session.mode === "subscription" && session.subscription) {
+        if (session.mode === "subscription" && session.subscription) {
           const subId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
           await syncSubscription(await stripe().subscriptions.retrieve(subId));
         }
@@ -96,4 +117,11 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<"processed
     await db.from("stripe_events").delete().eq("id", event.id);
     throw e;
   }
+}
+
+/** Processes one signature-verified Stripe event. Verification stays in the webhook route. */
+export async function handleStripeEvent(event: Stripe.Event): Promise<StripeHandlingResult> {
+  const session = checkoutSession(event);
+  if (session?.mode === "payment") return fulfillPaymentSession(event, session);
+  return processTrackedEvent(event);
 }

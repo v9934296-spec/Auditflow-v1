@@ -19,6 +19,11 @@ export class PermanentAuditError extends Error {
 
 const LOCKED_REMEDIATION = "Unlock the full audit to see the evidence and step-by-step fix.";
 
+/** Open P0/P1 issues that are new or returning. Retained fixes and not-retested rows do not alert. */
+export function findingsThatAlert(findings: Finding[]): Finding[] {
+  return findings.filter((f) => (f.change === "new" || f.change === "regressed") && (f.priority === "P0" || f.priority === "P1"));
+}
+
 export function rowToFinding(r: FindingRow): PreviousFinding {
   return {
     id: r.id,
@@ -128,9 +133,7 @@ async function persist(audit: AuditRow, repo: RepositoryRow, sha: string, result
 
   // Alert on new or returning P0/P1 findings in rechecks and monitoring.
   if (audit.kind === "monitor" || audit.kind === "recheck") {
-    const alertFindings = result.findings.filter(
-      (f) => (f.change === "new" || f.change === "regressed") && (f.priority === "P0" || f.priority === "P1"),
-    );
+    const alertFindings = findingsThatAlert(result.findings);
     if (alertFindings.length) {
       await db.from("alerts").insert(
         alertFindings.slice(0, 20).map((f) => ({ user_id: audit.user_id, repository_id: repo.id, audit_id: audit.id, severity: f.severity, message: `${f.priority}: ${f.title}` })),

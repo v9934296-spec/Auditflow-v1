@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { findingsThatAlert, findingToRow, rowToFinding } from "@/lib/audits/run";
+import type { FindingRow } from "@/lib/db/types";
 import { comparisonFromFiles } from "@/lib/github/app";
-import { compareWithPrevious, reusePriorAssessments } from "@/lib/analysis/pipeline";
+import { compareWithPrevious, reusePriorAssessments, wasVerifiedFixed } from "@/lib/analysis/pipeline";
 import { score, type Scorecard } from "@/lib/analysis/scoring";
 import { buildTickets } from "@/lib/analysis/tickets";
 import { finalize, identifyFindings, legacyFingerprintOf, type Coverage, type Finding, type RawFinding, type ScannerRun } from "@/lib/analysis/types";
@@ -126,6 +128,68 @@ describe("compareWithPrevious", () => {
     expect(unseen.map((f) => f.change)).toEqual(["new"]);
   });
 
+  it("keeps a verified fix across clean audits and classifies a later return as regressed", () => {
+    const scanned = [run("ran", ["src/a.ts"])];
+    const detected = compareWithPrevious([current()], [], scanned);
+    expect(detected.map((f) => f.change)).toEqual(["new"]);
+
+    const fixed = compareWithPrevious([], detected, scanned);
+    expect(fixed.map((f) => f.change)).toEqual(["fixed"]);
+    expect(wasVerifiedFixed(fixed[0]!)).toBe(true);
+
+    const clean = compareWithPrevious([], fixed, scanned);
+    const stillClean = compareWithPrevious([], clean, scanned);
+    expect(clean.map((f) => f.change)).toEqual(["fixed"]);
+    expect(stillClean.map((f) => f.change)).toEqual(["fixed"]);
+
+    const returned = compareWithPrevious([current()], stillClean, scanned);
+    expect(returned.map((f) => f.change)).toEqual(["regressed"]);
+  });
+
+  it("does not invent a new verified fix when coverage is incomplete, and keeps an earlier one", () => {
+    const scanned = [run("ran", ["src/a.ts"])];
+    const fixed = compareWithPrevious([], [historical()], scanned);
+    expect(fixed[0]!.change).toBe("fixed");
+
+    const gap = compareWithPrevious([], fixed, [run("skipped", ["src/a.ts"])]);
+    expect(gap[0]!.change).toBe("not_retested");
+    expect(gap[0]!.change).not.toBe("fixed");
+    expect(gap[0]!.evidence.facts?.verifiedFix).toBe(true);
+    expect(gap[0]!.evidence.method).toMatch(/Previously verified fixed/);
+    expect(gap[0]!.evidence.method).toMatch(/Not re-tested/);
+
+    const returned = compareWithPrevious([current()], gap, scanned);
+    expect(returned.map((f) => f.change)).toEqual(["regressed"]);
+
+    const confirmedAgain = compareWithPrevious([], gap, scanned);
+    expect(confirmedAgain.map((f) => f.change)).toEqual(["fixed"]);
+    expect(confirmedAgain[0]!.evidence.facts?.verifiedFix).toBe(true);
+    expect(confirmedAgain[0]!.evidence.method).toBe(fixed[0]!.evidence.method);
+    expect(confirmedAgain[0]!.evidence.method).not.toMatch(/Not re-tested/);
+    expect(confirmedAgain[0]!.evidence.method).not.toMatch(/not newly confirmed/);
+  });
+
+  it("does not let a retained fix change the score, tickets, or alerts", () => {
+    const scanned = [run("ran", ["src/a.ts"])];
+    const fixed = compareWithPrevious([], [historical({ severity: "critical" })], scanned);
+    expect(fixed[0]!.change).toBe("fixed");
+    const coverage: Coverage = {
+      filesTotal: 1, filesAnalyzed: 1, filesIngested: 1, filesInspected: 1, filesSkipped: 0, skippedReasons: {},
+      languages: { TypeScript: 1 },
+      scanners: [
+        { name: "secrets", status: "ran", inspectedFiles: ["src/a.ts"] },
+        { name: "readiness", status: "ran", inspectedFiles: ["src/a.ts"] },
+        { name: "semgrep", status: "ran", inspectedFiles: ["src/a.ts"] },
+        { name: "osv", status: "ran" },
+      ],
+      sourceCoverage: 1, truncated: false, notes: [],
+    };
+    expect(score(fixed, [], coverage).counts.P0).toBe(0);
+    expect(buildTickets(fixed)).toHaveLength(0);
+    expect(findingsThatAlert(fixed)).toHaveLength(0);
+    expect(findingsThatAlert([{ ...fixed[0]!, change: "regressed" }])).toHaveLength(1);
+  });
+
   it("does not reuse an AI assessment when the diff is missing or the file changed", () => {
     const prior = { ...historical(), ai: { verdict: "likely_false_positive" as const, confidence: "high" as const, explanation: "old", remediation: "ignore", model: "m" } };
     const cur = current();
@@ -168,6 +232,27 @@ describe("compareWithPrevious", () => {
     expect(tickets).toHaveLength(1);
     expect(tickets[0]!.bodyMarkdown).toMatch(/not a verified fix/i);
     expect(tickets[0]!.bodyMarkdown).not.toMatch(/status:\s*fixed/i);
+  });
+});
+
+describe("stored baseline history", () => {
+  function stored(finding: Finding, auditId: string) {
+    const row = findingToRow(finding, auditId, "00000000-0000-0000-0000-000000000001", true);
+    return rowToFinding({ ...row, id: `row-${auditId}`, created_at: "2026-01-01T00:00:00.000Z" } as FindingRow);
+  }
+
+  it("round-trips a verified fix and lets the latest baseline classify a return as regressed", () => {
+    const scanned = [run("ran", ["src/a.ts"])];
+    const detected = compareWithPrevious([current()], [], scanned);
+    const fixed = compareWithPrevious([], detected.map((f) => stored(f, "audit-a")), scanned);
+    const clean = compareWithPrevious([], fixed.map((f) => stored(f, "audit-b")), scanned);
+    const secondClean = compareWithPrevious([], clean.map((f) => stored(f, "audit-c")), scanned);
+    expect(secondClean.map((f) => f.change)).toEqual(["fixed"]);
+
+    const baseline = secondClean.map((f) => stored(f, "audit-c"));
+    expect(baseline[0]!.evidence.facts?.verifiedFix).toBe(true);
+    const returned = compareWithPrevious([current()], baseline, scanned);
+    expect(returned.map((f) => f.change)).toEqual(["regressed"]);
   });
 });
 

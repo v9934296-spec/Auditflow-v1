@@ -199,6 +199,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
                             {f.snippet ? <pre className="code-excerpt overflow-x-auto rounded-[var(--radius-sm)] bg-ink p-3 text-white/90">{f.snippet}</pre> : null}
                             <div>
                               <p className="font-semibold">Evidence</p>
+                              {f.change === "not_retested" && f.evidence.facts?.verifiedFix === true ? <p className="text-ink-soft">Previously verified fixed. This scan did not re-test the relevant evidence, so the fix is not newly confirmed.</p> : null}
                               <p className="text-ink-soft">{f.evidence.method} Confidence: {f.confidence}.</p>
                               {f.ai_assessment ? <p className="mt-1 text-ink-soft">AI review: {f.ai_assessment.explanation}</p> : null}
                             </div>

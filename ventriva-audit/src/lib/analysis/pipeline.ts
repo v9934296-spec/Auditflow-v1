@@ -128,10 +128,51 @@ function notRetested(previous: PreviousFinding, scanners: ScannerRun[]): Finding
   return { ...rest, change: "not_retested", evidence: { ...rest.evidence, method } };
 }
 
+const NOT_RETESTED_NOTE = "Previously verified fixed. This scan did not re-test that evidence, so the fix is not newly confirmed.";
+
+/** True when an earlier completed scan verified this issue was absent. */
+export function wasVerifiedFixed(finding: Finding): boolean {
+  return finding.change === "fixed" || finding.evidence.facts?.verifiedFix === true;
+}
+
+/** Drop annotations that describe an incomplete retest once a later scan verifies the fix again. */
+function withoutRetestAnnotations(method: string): string {
+  const note = `${NOT_RETESTED_NOTE} `;
+  const stripped = method.startsWith(note) ? method.slice(note.length) : method;
+  return stripped.replace(/ \(Not re-tested: [^)]*\)/g, "");
+}
+
+function withVerifiedFix(finding: Finding, change: Finding["change"]): Finding {
+  return {
+    ...finding,
+    change,
+    evidence: {
+      ...finding.evidence,
+      facts: { ...finding.evidence.facts, verifiedFix: true },
+    },
+  };
+}
+
+/**
+ * Absence of a previous issue. A completed inspection records a verified fix.
+ * Incomplete coverage keeps a prior verification but does not create a new one.
+ */
+function carryAbsence(previous: PreviousFinding, scanners: ScannerRun[], renames: ReadonlyMap<string, string>): Finding {
+  const { id: _id, ...rest } = previous;
+  if (findingRetested(previous, scanners, renames)) {
+    return withVerifiedFix({ ...rest, evidence: { ...rest.evidence, method: withoutRetestAnnotations(rest.evidence.method) } }, "fixed");
+  }
+  const carried = notRetested(previous, scanners);
+  if (!wasVerifiedFixed(previous)) return carried;
+  const method = carried.evidence.method.includes(NOT_RETESTED_NOTE) ? carried.evidence.method : `${NOT_RETESTED_NOTE} ${carried.evidence.method}`;
+  return withVerifiedFix({ ...carried, evidence: { ...carried.evidence, method } }, "not_retested");
+}
+
 /**
  * Compares current findings with a previous audit.
  * Fixed requires the same file, dependency, or configuration to have been inspected by a completed scanner.
- * Regressed requires the same issue to have been verified fixed before. Anything else new is new.
+ * A verified fix is kept on later clean audits. Regressed requires that earlier verification, including when an intervening scan could not re-test it.
+ * Anything else new is new.
  */
 export function compareWithPrevious(
   current: Finding[],
@@ -152,18 +193,12 @@ export function compareWithPrevious(
   const out: Finding[] = currentSides.map((side) => {
     const prior = take(side, (candidate) => sameIssue(side, candidate, renames));
     if (!prior) return { ...side.finding, change: "new" };
-    return { ...side.finding, change: prior.finding.change === "fixed" ? "regressed" : "unresolved" };
+    return { ...side.finding, change: wasVerifiedFixed(prior.finding) ? "regressed" : "unresolved" };
   });
 
   for (const side of previousSides) {
     if (matched.has(side)) continue;
-    if (side.finding.change === "fixed" && findingRetested(side.finding, scanners, renames)) continue;
-    if (findingRetested(side.finding, scanners, renames)) {
-      const { id: _id, ...rest } = side.finding as PreviousFinding;
-      out.push({ ...rest, change: "fixed" });
-    } else {
-      out.push(notRetested(side.finding, scanners));
-    }
+    out.push(carryAbsence(side.finding, scanners, renames));
   }
   return out;
 }
