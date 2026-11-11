@@ -3,6 +3,7 @@
 **Ticket status:** incomplete  
 **Launch decision:** **NO-GO**  
 **Report date (UTC):** 2026-11-11T02:59:24Z  
+**Updated (UTC):** 2026-11-11T03:05:00Z — staging secrets request was **skipped** by the operator; external “confirm staging targets” action was marked complete, but no staging credentials entered the agent environment. Live staging journeys remain blocked.  
 **Base commit inspected:** `545f3cc92623a4b902ac9f430f1c28f0d90c60d1` (merge of PR #8 / Tickets 1–3)  
 **Working branch:** `test/phase4-staging-acceptance`  
 **Scope:** exercise staging customer journey; fix reproducible integration defects only; produce release evidence. No product-functionality expansion.
@@ -243,7 +244,7 @@ These results prove migration SQL behavior in disposable Postgres. They do **not
 | Command | Result |
 |---|---|
 | `npm run typecheck` | PASS |
-| `npm run test:unit` | **17 files; 107 passed, 1 skipped (108)** |
+| `npm run test:unit` | **17 files; 108 passed** (Semgrep present; previously 1 skipped without CLI) |
 | `npm run test:integration` | **2 files; 7 passed** (local Postgres + PostgREST) |
 | `npm run build` | PASS (Next.js production build) |
 
