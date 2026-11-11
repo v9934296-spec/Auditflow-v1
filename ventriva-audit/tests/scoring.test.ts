@@ -104,6 +104,28 @@ describe("scoring", () => {
     const card = score([], [], { ...coverage, scanners: coverage.scanners.map((s) => s.name === "osv" ? { ...s, status: "skipped" as const, reason: "No supported lockfile found (package-lock.json, pnpm-lock.yaml, yarn.lock, pinned requirements.txt)." } : s) });
     expect(card.verdict).toBe("launch_ready_in_scope");
   });
+  it("does not penalize a previously verified fix when it was not retested, but withholds a fresh launch verdict", () => {
+    const priorFix = {
+      ...finalize({ ...base, severity: "critical" }),
+      change: "not_retested" as const,
+      evidence: { method: "Not re-tested", facts: { verifiedFix: true } },
+    };
+    const card = score([priorFix], [], coverage);
+    expect(card.rubricVersion).toBe("2026.11-v2");
+    expect(card.counts.P0).toBe(0);
+    expect(card.categories.find((c) => c.category === "security")?.findings).toBe(0);
+    expect(card.overall).toBeNull();
+    expect(card.verdict).toBe("insufficient_coverage");
+    expect(card.coverageNote).toMatch(/Previously verified fixes were not retested/);
+  });
+
+  it("keeps unverified not-retested blockers active", () => {
+    const unverified = { ...finalize({ ...base, severity: "critical" }), change: "not_retested" as const };
+    const card = score([unverified], [], coverage);
+    expect(card.counts.P0).toBe(1);
+    expect(card.verdict).toBe("not_launch_ready");
+  });
+
   it("never scores categories that were not assessed", () => {
     const card = score([], [], coverage);
     expect(card.categories.find((c) => c.category === "performance")!.score).toBeNull();
