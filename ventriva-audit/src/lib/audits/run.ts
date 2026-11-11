@@ -149,7 +149,7 @@ export async function runAudit(auditId: string): Promise<{ status: "completed" |
   const { data: auditData, error } = await db.from("audits")
     .update({ status: "running", started_at: new Date().toISOString() })
     .eq("id", auditId)
-    .in("status", ["queued", "running"])
+    .eq("status", "queued")
     .select("*")
     .maybeSingle();
   if (error) throw error;
