@@ -74,73 +74,53 @@ export function findingToRow(f: Finding, auditId: string, userId: string, detail
   };
 }
 
-async function persist(audit: AuditRow, repo: RepositoryRow, sha: string, result: AnalysisResult): Promise<boolean> {
-  const db = supabaseAdmin();
+async function persist(audit: AuditRow, sha: string, result: AnalysisResult): Promise<boolean> {
   const limits = LIMITS[audit.kind];
   const detailLimit = limits.detailedFindingsLimit;
-
-  // Replace any partial rows from an earlier attempt.
-  await db.from("tickets").delete().eq("audit_id", audit.id);
-  await db.from("findings").delete().eq("audit_id", audit.id);
-
-  const rows = result.findings.map((f, i) => findingToRow(f, audit.id, audit.user_id, detailLimit === null || i < detailLimit));
-  const idByFingerprint = new Map<string, string>();
-  for (let i = 0; i < rows.length; i += 500) {
-    const { data, error } = await db.from("findings").insert(rows.slice(i, i + 500)).select("id, fingerprint");
-    if (error) throw error;
-    for (const r of data as { id: string; fingerprint: string }[]) idByFingerprint.set(r.fingerprint, r.id);
-  }
-
-  const ticketRows = result.tickets
-    .map((t) => ({ audit_id: audit.id, user_id: audit.user_id, finding_id: idByFingerprint.get(t.findingFingerprints[0] ?? ""), priority: t.priority, title: t.title, body_markdown: t.bodyMarkdown }))
-    .filter((t): t is typeof t & { finding_id: string } => !!t.finding_id);
-  for (let i = 0; i < ticketRows.length; i += 500) {
-    const { error } = await db.from("tickets").insert(ticketRows.slice(i, i + 500));
-    if (error) throw error;
-  }
-
-  if (result.usage.length) {
-    const { error } = await db.from("usage_ledger").insert(
-      result.usage.map((u) => ({ user_id: audit.user_id, audit_id: audit.id, provider: u.provider, model: u.model, input_tokens: u.inputTokens, output_tokens: u.outputTokens, cost_usd: u.costUsd })),
-    );
-    if (error) throw error;
-  }
-
   const { categories, readiness, counts, coverageNote } = result.scorecard;
-  const { data: completed, error } = await db
-    .from("audits")
-    .update({
-      status: "completed",
-      commit_sha: sha,
-      rubric_version: result.scorecard.rubricVersion,
-      overall_score: result.scorecard.overall,
-      verdict: result.scorecard.verdict,
-      category_scores: { categories, readiness, counts, coverageNote },
-      coverage: result.coverage,
-      summary: result.summary,
-      ai_cost_usd: Number(result.aiCostUsd.toFixed(4)),
-      input_tokens: result.usage.reduce((a, u) => a + u.inputTokens, 0),
-      output_tokens: result.usage.reduce((a, u) => a + u.outputTokens, 0),
-      completed_at: new Date().toISOString(),
-      error: null,
-    })
-    .eq("id", audit.id)
-    .eq("status", "running")
-    .select("id")
-    .maybeSingle();
-  if (error) throw error;
-  if (!completed) return false;
 
-  // Alert on new or returning P0/P1 findings in rechecks and monitoring.
-  if (audit.kind === "monitor" || audit.kind === "recheck") {
-    const alertFindings = findingsThatAlert(result.findings);
-    if (alertFindings.length) {
-      await db.from("alerts").insert(
-        alertFindings.slice(0, 20).map((f) => ({ user_id: audit.user_id, repository_id: repo.id, audit_id: audit.id, severity: f.severity, message: `${f.priority}: ${f.title}` })),
-      );
-    }
-  }
-  return true;
+  // Postgres performs all writes, including completion, in one transaction.
+  // A failed statement rolls back findings, tickets, usage, alerts, and status.
+  const payload = {
+    sha,
+    rubricVersion: result.scorecard.rubricVersion,
+    overall: result.scorecard.overall,
+    verdict: result.scorecard.verdict,
+    categoryScores: { categories, readiness, counts, coverageNote },
+    coverage: result.coverage,
+    summary: result.summary,
+    aiCostUsd: Number(result.aiCostUsd.toFixed(4)),
+    inputTokens: result.usage.reduce((a, u) => a + u.inputTokens, 0),
+    outputTokens: result.usage.reduce((a, u) => a + u.outputTokens, 0),
+    findings: result.findings.map((f, i) =>
+      findingToRow(f, audit.id, audit.user_id, detailLimit === null || i < detailLimit)
+    ),
+    tickets: result.tickets.map((t) => ({
+      fingerprint: t.findingFingerprints[0] ?? "",
+      priority: t.priority,
+      title: t.title,
+      body_markdown: t.bodyMarkdown,
+    })),
+    usage: result.usage.map((u) => ({
+      provider: u.provider,
+      model: u.model,
+      input_tokens: u.inputTokens,
+      output_tokens: u.outputTokens,
+      cost_usd: u.costUsd,
+    })),
+    alerts: (audit.kind === "monitor" || audit.kind === "recheck")
+      ? findingsThatAlert(result.findings).slice(0, 20).map((f) => ({
+          severity: f.severity,
+          message: `${f.priority}: ${f.title}`,
+        }))
+      : [],
+  };
+  const { data, error } = await supabaseAdmin().rpc("complete_audit", {
+    p_audit_id: audit.id,
+    p_payload: payload,
+  });
+  if (error) throw error;
+  return data === true;
 }
 
 export async function runAudit(auditId: string): Promise<{ status: "completed" | "skipped"; score?: number | null }> {
@@ -201,8 +181,7 @@ export async function runAudit(auditId: string): Promise<{ status: "completed" |
       return Number(spent) + estimateUsd <= env.DAILY_AI_SPEND_CAP_USD;
     };
     const result = await analyzeRepository(index, { kind: audit.kind, ingest: workspace.stats, provider, globalBudgetGuard, previous, changedFiles: changed, renames });
-    if (!(await persist(audit, repo, sha, result))) return { status: "skipped" };
-    if (audit.kind === "monitor") await db.from("repositories").update({ last_monitor_scan_at: new Date().toISOString() }).eq("id", repo.id);
+    if (!(await persist(audit, sha, result))) return { status: "skipped" };
     return { status: "completed", score: result.scorecard.overall };
   } finally {
     await workspace.cleanup();
