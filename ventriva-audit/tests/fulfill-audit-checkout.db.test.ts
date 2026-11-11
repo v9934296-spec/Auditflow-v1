@@ -43,7 +43,7 @@ describe("fulfill_audit_checkout (postgres)", () => {
       end $$;
     `);
     const dir = path.join(process.cwd(), "supabase", "migrations");
-    for (const file of ["0001_init.sql", "0002_rate_limits.sql", "0003_finding_not_retested.sql", "0004_scan_recovery.sql", "0005_audit_checkout_fulfillment.sql"]) {
+    for (const file of ["0001_init.sql", "0002_rate_limits.sql", "0003_finding_not_retested.sql", "0004_scan_recovery.sql", "0005_audit_checkout_fulfillment.sql", "0006_atomic_audit_completion.sql"]) {
       await setup.query(readFileSync(path.join(dir, file), "utf8"));
     }
     await setup.query(`insert into auth.users (id, email) values ($1, 'buyer@example.com'), ($2, 'other@example.com')`, [USER, OTHER]);

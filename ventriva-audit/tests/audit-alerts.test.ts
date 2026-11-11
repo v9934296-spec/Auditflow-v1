@@ -47,7 +47,7 @@ it.each(["monitor", "recheck", "full_audit"] as const)("persists eligible alerts
     summary: "", summaryByAi: false, aiCostUsd: 0, aiNote: null,
   });
 
-  const insertAlerts = vi.fn().mockResolvedValue({ error: null });
+  const rpc = vi.fn().mockResolvedValue({ data: true, error: null });
   const audit = { id: "audit", user_id: "user", repository_id: "repo", status: "queued", kind };
   const repo = { id: "repo" };
   const from = vi.fn((table: string) => {
@@ -56,22 +56,16 @@ it.each(["monitor", "recheck", "full_audit"] as const)("persists eligible alerts
       delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
       update: () => ({ eq: () => ({ in: () => selectedAudit, eq: () => selectedAudit }) }),
       select: () => ({ eq: () => ({ single: () => ({ data: table === "audits" ? audit : repo }) }) }),
-      insert: table === "alerts" ? insertAlerts : () => ({ select: () => ({ data: [], error: null }) }),
     };
   });
-  vi.mocked(supabaseAdmin).mockReturnValue({ from } as unknown as ReturnType<typeof supabaseAdmin>);
+  vi.mocked(supabaseAdmin).mockReturnValue({ from, rpc } as unknown as ReturnType<typeof supabaseAdmin>);
 
   await runAudit(audit.id);
 
-  if (kind === "full_audit") {
-    expect(insertAlerts).not.toHaveBeenCalled();
-  } else {
-    expect(insertAlerts).toHaveBeenCalledExactlyOnceWith(findings.slice(0, 3).map((finding) => ({
-      user_id: "user",
-      repository_id: "repo",
-      audit_id: "audit",
-      severity: finding.severity,
-      message: `${finding.priority}: ${finding.title}`,
-    })));
-  }
+  expect(rpc).toHaveBeenCalledExactlyOnceWith("complete_audit", expect.objectContaining({ p_audit_id: audit.id }));
+  const payload = rpc.mock.calls[0]![1].p_payload as { alerts: unknown[] };
+  expect(payload.alerts).toEqual(kind === "full_audit" ? [] : findings.slice(0, 3).map((finding) => ({
+    severity: finding.severity,
+    message: `${finding.priority}: ${finding.title}`,
+  })));
 });
