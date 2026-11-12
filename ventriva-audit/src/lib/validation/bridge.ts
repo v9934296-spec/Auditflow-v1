@@ -21,9 +21,17 @@ export type BridgeResult =
   | { status: "ok"; analyses: z.infer<typeof LegacyAnalysis>[] }
   | { status: "not_linked" | "unavailable" };
 
+/** Undici keeps the socket until the body is read or cancelled. */
+async function releaseBody(response: Response): Promise<void> {
+  await response.body?.cancel().catch(() => undefined);
+}
+
 async function readBounded(response: Response): Promise<unknown> {
   const size = response.headers.get("content-length");
-  if (size && Number(size) > MAX_BYTES) throw new Error("bridge response too large");
+  if (size && Number(size) > MAX_BYTES) {
+    await releaseBody(response);
+    throw new Error("bridge response too large");
+  }
   if (!response.body) throw new Error("bridge response empty");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -75,8 +83,10 @@ export async function listLinkedAnalyses(userId: string): Promise<BridgeResult> 
       cache: "no-store",
       signal: AbortSignal.timeout(5_000),
     });
-    if (response.status === 404) return { status: "not_linked" };
-    if (!response.ok) return { status: "unavailable" };
+    if (!response.ok) {
+      await releaseBody(response);
+      return response.status === 404 ? { status: "not_linked" } : { status: "unavailable" };
+    }
     const parsed = LegacyAnalysisList.safeParse(await readBounded(response));
     if (!parsed.success) return { status: "unavailable" };
     return { status: "ok", analyses: parsed.data.analyses };
