@@ -39,10 +39,11 @@ describe("M4 signed account-link bridge writes", () => {
     expect(request.cache).toBe("no-store");
     const headers = request.headers as Record<string, string>;
     expect(headers["x-bridge-user-id"]).toBe(id);
+    expect(headers["x-bridge-nonce"]).toMatch(/^[0-9a-f-]{36}$/);
     expect(request.body).toBe(JSON.stringify({ code }));
     const digest = createHash("sha256").update(request.body as string).digest("hex");
     expect(headers["x-bridge-signature"]).toBe(createHmac("sha256", secret)
-      .update(`POST\n/api/internal/v1/link/redeem\n${id}\n${headers["x-bridge-timestamp"]}\n${digest}`).digest("hex"));
+      .update(`POST\n/api/internal/v1/link/redeem\n${id}\n${headers["x-bridge-timestamp"]}\n${headers["x-bridge-nonce"]}\n${digest}`).digest("hex"));
     expect(headers).not.toHaveProperty("authorization");
   });
 
