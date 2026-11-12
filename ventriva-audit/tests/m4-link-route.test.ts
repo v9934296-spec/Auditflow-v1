@@ -41,10 +41,13 @@ describe("M4 link and unlink API authorization", () => {
 
   it("enforces confirmed email and per-user link rate limits", async () => {
     getUser.mockResolvedValueOnce({ id, email_confirmed_at: null });
-    expect((await POST(req("POST", { code }))).status).toBe(403);
+    const unconfirmed = await POST(req("POST", { code }));
+    expect(unconfirmed.status).toBe(403);
+    expect(await unconfirmed.json()).toEqual({ error: "Confirm your email before linking accounts" });
+    expect(rateLimit).not.toHaveBeenCalled();
     rateLimit.mockResolvedValue(false);
     expect((await POST(req("POST", { code }))).status).toBe(429);
-    expect(rateLimit).toHaveBeenCalledWith("validationLink", id);
+    expect(rateLimit).toHaveBeenCalledExactlyOnceWith("validationLink", id);
     expect(updateLegacyLink).not.toHaveBeenCalled();
   });
 

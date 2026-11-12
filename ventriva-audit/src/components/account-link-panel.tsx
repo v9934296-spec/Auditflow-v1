@@ -39,17 +39,19 @@ export function AccountLinkPanel() {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ code: code.trim() }),
       });
-      setCode("");
       if (response.ok) {
+        setCode("");
         setNotice("Accounts linked for read-only validation summaries. Billing and sign-in remain separate.");
         await refresh();
       } else if (response.status === 409) {
+        setCode("");
         setNotice("This code cannot be used. Generate a new code from your Ventriva account if needed.");
         await refresh();
       } else if (response.status === 401) {
         setStatus("signed_out");
       } else {
-        setNotice("Account linking is unavailable. No subscriptions or saved reports have been changed.");
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        setNotice(payload.error ?? "Account linking is unavailable. No subscriptions or saved reports have been changed.");
       }
     } catch {
       setNotice("Connection failed. Check account status before generating another code.");
