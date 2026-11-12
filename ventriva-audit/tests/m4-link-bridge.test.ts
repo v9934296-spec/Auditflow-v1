@@ -51,8 +51,10 @@ describe("M4 signed account-link bridge writes", () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('{"revoked":true}', { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     expect(await updateLegacyLink(id, "revoke")).toEqual({ status: "revoked", revoked: true });
-    expect(fetchMock.mock.calls[0][0]).toBe(host + "/api/internal/v1/link/revoke");
-    expect(fetchMock.mock.calls[0][1].body).toBe("{}");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(host + "/api/internal/v1/link/revoke");
+    expect(options.body).toBe("{}");
   });
 
   it("fails closed on conflict, malformed, oversized and failed responses", async () => {
