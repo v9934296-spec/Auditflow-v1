@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccountLinkPanel } from "@/components/account-link-panel";
 import { VALIDATION_APP_URL } from "@/lib/product/modules";
 import { buttonStyles } from "@/components/ui/button";
 
@@ -28,6 +29,7 @@ export default function ValidatePage() {
         </div>
         <p className="mt-4 text-sm text-ink-soft">You are leaving this workspace. Sign in separately on the idea validator to access its reports.</p>
       </section>
+      <AccountLinkPanel />
     </div>
   );
 }
