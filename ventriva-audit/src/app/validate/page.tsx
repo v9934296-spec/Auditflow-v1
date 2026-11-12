@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccountLinkPanel } from "@/components/account-link-panel";
 import { VALIDATION_APP_URL } from "@/lib/product/modules";
 import { buttonStyles } from "@/components/ui/button";
 
@@ -18,7 +19,7 @@ export default function ValidatePage() {
         <p className="mt-3 text-ink-soft">
           The validation app has its own account, sign-in, saved reports, subscriptions and billing.
           Your AuditFlow credentials and purchases do not automatically carry over.
-          We will not claim these accounts are connected until that integration is verified.
+          You can voluntarily link the accounts for read-only report summaries below. Sign-in and billing remain separate.
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <a href={VALIDATION_APP_URL} className={buttonStyles({ size: "lg" })}>
@@ -28,6 +29,7 @@ export default function ValidatePage() {
         </div>
         <p className="mt-4 text-sm text-ink-soft">You are leaving this workspace. Sign in separately on the idea validator to access its reports.</p>
       </section>
+      <AccountLinkPanel />
     </div>
   );
 }
