@@ -26,9 +26,10 @@ export async function updateLegacyLink(
   const path = operation === "redeem" ? REDEEM_PATH : REVOKE_PATH;
   const body = operation === "redeem" ? JSON.stringify({ code }) : "{}";
   const timestamp = String(Math.floor(Date.now() / 1000));
+  const nonce = randomUUID();
   const digest = createHash("sha256").update(body).digest("hex");
   const signature = createHmac("sha256", secret)
-    .update(`POST\n${path}\n${userId}\n${timestamp}\n${digest}`).digest("hex");
+    .update(`POST\n${path}\n${userId}\n${timestamp}\n${nonce}\n${digest}`).digest("hex");
   try {
     const response = await fetch(`${TRUSTED_ORIGIN}${path}`, {
       method: "POST",
@@ -36,6 +37,7 @@ export async function updateLegacyLink(
         "content-type": "application/json",
         "x-bridge-user-id": userId,
         "x-bridge-timestamp": timestamp,
+        "x-bridge-nonce": nonce,
         "x-bridge-signature": signature,
         "x-request-id": randomUUID(),
       },
