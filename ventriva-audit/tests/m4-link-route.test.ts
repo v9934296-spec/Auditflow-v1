@@ -6,13 +6,10 @@ const { getUser, rateLimit, updateLegacyLink } = vi.hoisted(() => ({
 vi.mock("@/lib/env", () => ({ publicEnv: { appUrl: "https://audit.example.test" } }));
 vi.mock("@/lib/supabase/server", () => ({ getUser }));
 vi.mock("@/lib/http/rate-limit", () => ({ rateLimit }));
-vi.mock("@/lib/validation/link", () => ({
-  LinkCode: { safeParse: (value: unknown) => ({
-    success: typeof value === "string" && /^[A-Za-z0-9_-]{32}$/.test(value),
-    data: value,
-  }) },
-  updateLegacyLink,
-}));
+vi.mock("@/lib/validation/link", async () => {
+  const { z } = await import("zod");
+  return { LinkCode: z.string().regex(/^[A-Za-z0-9_-]{32}$/), updateLegacyLink };
+});
 import { POST, DELETE } from "@/app/api/validation/link/route";
 
 const id = "11111111-1111-4111-8111-111111111111";
