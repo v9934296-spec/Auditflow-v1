@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProductModuleCards } from "@/components/product-module-cards";
 import { InspectionTag } from "@/components/inspection-tag";
 import { buttonStyles } from "@/components/ui/button";
 import { PRICING } from "@/lib/config/plans";
@@ -14,6 +15,13 @@ const AREAS = [
 export default function Home() {
   return (
     <>
+      <section className="mx-auto max-w-6xl px-5 pt-12 md:pt-16" aria-labelledby="product-heading">
+        <p className="text-sm font-bold uppercase tracking-widest text-ink-soft">Ventriva / From idea to launch</p>
+        <h2 id="product-heading" className="mt-2 text-3xl font-extrabold md:text-4xl">Validate the opportunity. Audit the build. Monitor the fixes.</h2>
+        <p className="mt-3 max-w-3xl text-ink-soft">One product direction, with separate evaluation engines and evidence. Idea validation currently opens in its own application with a separate account and billing.</p>
+        <div className="mt-7"><ProductModuleCards /></div>
+      </section>
+
       <section className="mx-auto grid max-w-6xl gap-12 px-5 pb-16 pt-16 md:grid-cols-[1fr_auto] md:pt-24">
         <div className="max-w-2xl">
           <h1 className="text-5xl font-extrabold [font-stretch:92%] md:text-6xl">Know if your app can take paying customers before they find out it can&rsquo;t.</h1>

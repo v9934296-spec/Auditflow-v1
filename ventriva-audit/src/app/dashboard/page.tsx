@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProductModuleCards } from "@/components/product-module-cards";
 import { MonitoringToggle } from "@/components/monitoring-toggle";
 import { PostButton } from "@/components/post-button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       {sp.github_error ? <p role="alert" className="mb-6 rounded-[var(--radius-sm)] border border-blocked/40 bg-blocked/5 p-3 text-sm text-blocked">{sp.github_error}</p> : null}
       {sp.checkout === "success" ? <p className="mb-6 rounded-[var(--radius-sm)] border border-verified/40 bg-verified/5 p-3 text-sm text-verified">Payment received. Your credit appears below within a few seconds.</p> : null}
 
+      <section className="mb-10" aria-labelledby="workspace-heading">
+        <p className="text-sm font-bold uppercase tracking-widest text-ink-soft">Ventriva / Workspace</p>
+        <h1 id="workspace-heading" className="mt-2 text-3xl font-extrabold">Your founder workspace</h1>
+        <p className="mb-6 mt-2 text-ink-soft">Business validation and technical auditing use separate accounts for now. Your existing audit reports and payments remain here.</p>
+        <ProductModuleCards compact />
+      </section>
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
           <h1 className="text-3xl font-extrabold">Your repositories</h1>

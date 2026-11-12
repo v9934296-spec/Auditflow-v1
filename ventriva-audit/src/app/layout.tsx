@@ -5,8 +5,8 @@ import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Ventriva Audit — launch readiness review for solo founders", template: "%s · Ventriva Audit" },
-  description: "Connect your repository and find out, with evidence, whether your app is ready to take paying customers.",
+  title: { default: "Ventriva | Validate ideas and audit applications", template: "%s · Ventriva" },
+  description: "Validate a business idea or audit an application before launch. Independent evidence-backed assessments, clear limitations and practical next steps.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
