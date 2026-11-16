@@ -28,6 +28,7 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
         </label>
         <button className={buttonStyles()}>Add watch</button>
       </form>
+      {notice === "capacity" ? <p role="alert">Watch capacity reached. Remove a watch or try again later.</p> : null}
       {notice === "invalid" ? <p role="alert">Enter a valid public HTTPS URL.</p> : null}
       {error || notice === "failed" ? <p role="alert">Watch data is unavailable. Try again shortly.</p> : null}
       {!error && !data?.length ? <p className="text-ink-soft">Add a page to start tracking changes.</p> : null}

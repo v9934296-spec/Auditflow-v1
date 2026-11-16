@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const { error } = await db.from("page_watches").upsert({ user_id: user.id, url }, {
       onConflict: "user_id,url", ignoreDuplicates: true,
     });
-    if (error) destination.searchParams.set("notice", "failed");
+    if (error) destination.searchParams.set("notice", error.message === "page_watch_capacity" ? "capacity" : "failed");
   }
   return NextResponse.redirect(destination, 303);
 }
