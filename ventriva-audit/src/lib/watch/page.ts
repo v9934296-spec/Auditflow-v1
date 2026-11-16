@@ -71,8 +71,8 @@ export function pageSnapshot(html: string) {
   $("script, style, noscript, svg, iframe, canvas, [hidden]").remove();
   const normalize = (value: string) => value.replace(/\s+/g, " ").trim();
   const title = normalize($("title").first().text()).slice(0, 180);
-  const text = normalize($("body").text()).slice(0, 120_000);
-  return { text, title, digest: createHash("sha256").update(text).digest("hex") };
+  const text = normalize($("body").text());
+  return { text: text.slice(0, 120_000), title, digest: createHash("sha256").update(text).digest("hex") };
 }
 
 export function pageDiff(before: string, after: string) {

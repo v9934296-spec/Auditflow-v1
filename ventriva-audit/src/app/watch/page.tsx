@@ -47,7 +47,7 @@ export default async function WatchPage({ searchParams }: { searchParams: Promis
                     {change.added.map((text, index) => <li key={"added-" + index}>Added: {text}</li>)}
                     {change.removed.map((text, index) => <li key={"removed-" + index}>Removed: {text}</li>)}
                   </ul>
-                ) : <p className="my-2 text-sm">The page text was reordered or repeated.</p>}
+                ) : <p className="my-2 text-sm">The page changed outside the displayed excerpt, or its text was reordered or repeated.</p>}
               </details>
             ))}
             <form action="/api/watches" method="post">
