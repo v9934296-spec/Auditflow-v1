@@ -45,7 +45,7 @@ describe("complete_audit (postgres)", () => {
         end $$;
       `);
       const migrations = ["0001_init.sql", "0002_rate_limits.sql", "0003_finding_not_retested.sql",
-        "0004_scan_recovery.sql", "0005_audit_checkout_fulfillment.sql", "0006_atomic_audit_completion.sql"];
+        "0004_scan_recovery.sql", "0005_audit_checkout_fulfillment.sql", "0006_atomic_audit_completion.sql", "0007_m5_scoped_subscription.sql"];
       for (const file of migrations) {
         await setup.query(readFileSync(path.join(process.cwd(), "supabase", "migrations", file), "utf8"));
       }
