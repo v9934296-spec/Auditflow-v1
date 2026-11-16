@@ -211,10 +211,8 @@ describe("fulfill_audit_checkout (postgres)", () => {
   });
 
   it("rejects cross-tenant customer mappings and wrong product prices without consuming the event", async () => {
-    const forbidden = [
-      "select public.apply_audit_subscription_event('evt_m5_tenant', 'customer.subscription.updated', 200, 'sub_foreign', 'cus_m5', $1::uuid, 'price_audit_pro', 'price_audit_pro', 'active', '2026-01-01'::timestamptz, '2026-02-01'::timestamptz, false)",
-    ];
-    await expect(pool.query(forbidden[0], [OTHER])).rejects.toThrow(/STRIPE_CUSTOMER_OWNERSHIP_MISMATCH/);
+    const forbidden = "select public.apply_audit_subscription_event('evt_m5_tenant', 'customer.subscription.updated', 200, 'sub_foreign', 'cus_m5', $1::uuid, 'price_audit_pro', 'price_audit_pro', 'active', '2026-01-01'::timestamptz, '2026-02-01'::timestamptz, false)";
+    await expect(pool.query(forbidden, [OTHER])).rejects.toThrow(/STRIPE_CUSTOMER_OWNERSHIP_MISMATCH/);
     await expect(pool.query(
       "select public.apply_audit_subscription_event('evt_m5_wrong_price','customer.subscription.updated',200,'sub_wrong_price','cus_m5',$1::uuid,'price_legacy','price_audit_pro','active','2026-01-01'::timestamptz,'2026-02-01'::timestamptz,false)",
       [USER],
