@@ -15,15 +15,15 @@ export const LegacyAnalysisList = z.object({
 
 const BRIDGE_PATH = "/api/internal/v1/analyses";
 const MAX_BYTES = 65_536;
-const TRUSTED_ORIGIN = "https://venturelens-l2q2.onrender.com";
+export const TRUSTED_ORIGIN = "https://venturelens-l2q2.onrender.com";
 
 export type BridgeResult =
   | { status: "ok"; analyses: z.infer<typeof LegacyAnalysis>[] }
   | { status: "not_linked" | "unavailable" };
 
-async function readBounded(response: Response): Promise<unknown> {
+export async function readBounded(response: Response, maxBytes = MAX_BYTES): Promise<unknown> {
   const size = response.headers.get("content-length");
-  if (size && Number(size) > MAX_BYTES) throw new Error("bridge response too large");
+  if (size && Number(size) > maxBytes) throw new Error("bridge response too large");
   if (!response.body) throw new Error("bridge response empty");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -33,7 +33,7 @@ async function readBounded(response: Response): Promise<unknown> {
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > MAX_BYTES) throw new Error("bridge response too large");
+      if (bytes > maxBytes) throw new Error("bridge response too large");
       chunks.push(value);
     }
   } finally {

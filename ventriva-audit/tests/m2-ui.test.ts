@@ -10,9 +10,9 @@ describe("M2 rendered navigation and module handoff", () => {
     const markup = renderToStaticMarkup(createElement(ProductModuleCards));
     expect(markup).toContain('href="/validate"');
     expect(markup).toContain('href="/dashboard"');
-    expect(markup).toContain('href="/monitor"');
-    expect(markup).toContain("Separate application and sign-in");
-    expect(markup).toContain("eligible Audit Pro access");
+    expect(markup).toContain('href="/watch"');
+    expect(markup).toContain("Connect your validation account");
+    expect(markup).toContain("Watch pages");
   });
 
   it("explains the separate Ventriva login before linking to its live site", () => {

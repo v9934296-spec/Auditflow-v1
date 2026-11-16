@@ -19,11 +19,11 @@ export const productModules = [
     status: "available",
   },
   {
-    id: "monitor",
-    title: "Monitor",
-    eyebrow: "Post-audit verification",
-    summary: "Track rechecks and regression alerts for audited repositories. Monitoring requires the eligible audit subscription.",
-    href: "/monitor",
-    status: "audit_pro",
+    id: "watch",
+    title: "Watch",
+    eyebrow: "Public page monitoring",
+    summary: "Track changes to public pages and see what text was added or removed.",
+    href: "/watch",
+    status: "available",
   },
 ] as const;

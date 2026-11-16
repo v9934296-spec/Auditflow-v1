@@ -5,7 +5,7 @@ import { buttonStyles } from "./ui/button";
 const MODULE_LINKS = [
   { href: "/validate", label: "Validate" },
   { href: "/dashboard", label: "Audit" },
-  { href: "/monitor", label: "Monitor" },
+  { href: "/watch", label: "Watch" },
 ] as const;
 
 export async function SiteHeader() {

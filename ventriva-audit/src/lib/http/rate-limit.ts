@@ -6,6 +6,7 @@ export const RATE_LIMITS = {
   repoSync: { limit: 10, windowSeconds: 600 },
   portal: { limit: 10, windowSeconds: 600 },
   monitoring: { limit: 30, windowSeconds: 600 },
+  validationStart: { limit: 10, windowSeconds: 600 },
   validationRead: { limit: 20, windowSeconds: 600 },
   validationLink: { limit: 5, windowSeconds: 600 },
 } as const;

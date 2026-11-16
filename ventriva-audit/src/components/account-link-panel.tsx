@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { WorkspaceValidationForm } from "@/components/workspace-validation-form";
 import { VALIDATION_APP_URL } from "@/lib/product/modules";
 
 type Summary = { id: string; name: string; status: string; kind: "preview" | "full"; created_at: string };
@@ -41,7 +42,7 @@ export function AccountLinkPanel() {
       });
       setCode("");
       if (response.ok) {
-        setNotice("Accounts linked for read-only validation summaries. Billing and sign-in remain separate.");
+        setNotice("Validation account linked. You can start and read reports here.");
         await refresh();
       } else if (response.status === 409) {
         setNotice("This code cannot be used. Generate a new code from your Ventriva account if needed.");
@@ -78,8 +79,7 @@ export function AccountLinkPanel() {
     <section className="mt-8 rounded-[var(--radius-md)] border border-rule bg-sheet p-6" aria-labelledby="link-accounts-heading">
       <h2 id="link-accounts-heading" className="text-xl font-bold">Connect your Ventriva accounts</h2>
       <p className="mt-2 text-sm text-ink-soft">
-        Account linking requires access to both sign-ins. It enables read-only validation report summaries,
-        not shared payment credits or automatic account migration.
+        Use a one-time code from your validation account to run validations and view reports in this workspace.
       </p>
       {status === "loading" ? <p role="status" className="mt-4 text-sm">Checking account link…</p> : null}
       {status === "signed_out" ? (
@@ -105,12 +105,13 @@ export function AccountLinkPanel() {
       ) : null}
       {status === "linked" ? (
         <div className="mt-5">
-          <p className="text-sm font-semibold text-verified">Validation account linked for read-only summaries.</p>
+          <p className="text-sm font-semibold text-verified">Validation account linked.</p>
+          <WorkspaceValidationForm />
           {items.length ? (
             <ul className="mt-3 divide-y divide-rule rounded-[var(--radius-sm)] border border-rule">
               {items.map((item) => (
                 <li key={item.id} className="flex flex-wrap justify-between gap-2 p-3 text-sm">
-                  <span className="font-semibold">{item.name}</span>
+                  <Link className="font-semibold underline" href={"/validate/reports/" + encodeURIComponent(item.id)}>{item.name}</Link>
                   <span className="text-ink-soft">{item.kind} / {item.status}</span>
                 </li>
               ))}
