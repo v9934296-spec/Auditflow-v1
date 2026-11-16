@@ -18,7 +18,7 @@ async function ensureCustomer(userId: string, email: string): Promise<string> {
   const { data: profile, error } = await db.from("profiles").select("stripe_customer_id").eq("id", userId).single();
   if (error) throw error;
   if (profile.stripe_customer_id) return profile.stripe_customer_id as string;
-  const customer = await stripe().customers.create({ email, metadata: auditCheckoutMetadata(userId, kind) }, { idempotencyKey: `customer-${userId}` });
+  const customer = await stripe().customers.create({ email, metadata: { user_id: userId, product: "audit" } }, { idempotencyKey: `customer-${userId}` });
   const { error: upErr } = await db.from("profiles").update({ stripe_customer_id: customer.id }).eq("id", userId).is("stripe_customer_id", null);
   if (upErr) throw upErr;
   return customer.id;
