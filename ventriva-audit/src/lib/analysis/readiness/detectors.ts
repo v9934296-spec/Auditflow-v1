@@ -38,11 +38,53 @@ function hasDep(ctx: Ctx, ...names: (string | RegExp)[]): string | null {
   return null;
 }
 
+/** Blank out string literals and comments while preserving offsets and line numbers. */
+function stripStringsAndComments(src: string): string {
+  let out = "";
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    // Block comment
+    if (src[i] === "/" && src[i + 1] === "*") {
+      const start = i;
+      i += 2;
+      while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++;
+      i = Math.min(i + 2, n);
+      out += " ".repeat(i - start);
+      continue;
+    }
+    // Line comment
+    if (src[i] === "/" && src[i + 1] === "/") {
+      const start = i;
+      while (i < n && src[i] !== "\n") i++;
+      out += " ".repeat(i - start);
+      continue;
+    }
+    // String / template literal
+    if (src[i] === '"' || src[i] === "'" || src[i] === "`") {
+      const quote = src[i];
+      const start = i;
+      i++;
+      while (i < n) {
+        if (src[i] === "\\") { i += 2; continue; }
+        if (src[i] === quote) { i++; break; }
+        i++;
+      }
+      out += " ".repeat(i - start);
+      continue;
+    }
+    out += src[i];
+    i++;
+  }
+  return out;
+}
+
 async function grep(ctx: Ctx, files: string[], re: RegExp): Promise<{ path: string; line: number; text: string } | null> {
   for (const p of files) {
-    const text = await ctx.repo.read(p);
+    const raw = await ctx.repo.read(p);
+    const text = p.match(/\.(ts|tsx|js|jsx|mjs|cjs)$/) ? stripStringsAndComments(raw) : raw;
     const m = re.exec(text);
-    if (m) return { path: p, line: lineOf(text, m.index), text };
+    if (m) return { path: p, line: lineOf(raw, m.index), text: raw };
   }
   return null;
 }
@@ -50,9 +92,10 @@ async function grep(ctx: Ctx, files: string[], re: RegExp): Promise<{ path: stri
 async function grepAll(ctx: Ctx, files: string[], re: RegExp, limit = 20): Promise<{ path: string; line: number; text: string }[]> {
   const out: { path: string; line: number; text: string }[] = [];
   for (const p of files) {
-    const text = await ctx.repo.read(p);
+    const raw = await ctx.repo.read(p);
+    const text = p.match(/\.(ts|tsx|js|jsx|mjs|cjs)$/) ? stripStringsAndComments(raw) : raw;
     const m = re.exec(text);
-    if (m) out.push({ path: p, line: lineOf(text, m.index), text });
+    if (m) out.push({ path: p, line: lineOf(raw, m.index), text: raw });
     if (out.length >= limit) break;
   }
   return out;

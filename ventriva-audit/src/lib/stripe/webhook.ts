@@ -103,9 +103,32 @@ async function processTrackedEvent(event: Stripe.Event): Promise<StripeHandlingR
   return syncSubscription(current, event);
 }
 
-/** Processes one signature-verified Stripe event. Verification stays in the webhook route. */
+/**
+ * Processes one signature-verified Stripe event. Verification stays in the webhook route.
+ */
 export async function handleStripeEvent(event: Stripe.Event): Promise<StripeHandlingResult> {
+  if (event.type === "charge.refunded") {
+    return handleRefund(event);
+  }
   const session = checkoutSession(event);
   if (session?.mode === "payment") return fulfillPaymentSession(event, session);
   return processTrackedEvent(event);
+}
+
+async function handleRefund(event: Stripe.Event): Promise<StripeHandlingResult> {
+  const charge = event.data.object as Stripe.Charge;
+  const customerId = typeof charge.customer === "string" ? charge.customer : charge.customer?.id;
+  if (!customerId) return "ignored";
+  const userId = await userIdForCustomer(customerId);
+  if (!userId) return "unreconciled";
+
+  // Only claw back an unused credit for one-time audit purchases
+  const { data, error } = await supabaseAdmin().rpc("clawback_audit_credit", {
+    p_event_id: event.id,
+    p_user_id: userId,
+  });
+  if (error) throw error;
+  if (data === "decremented") return "processed";
+  if (data === "duplicate" || data === "no_credit") return "duplicate";
+  return "ignored";
 }
