@@ -97,9 +97,8 @@ Set `SEMGREP_ENABLE_VERSION_CHECK=0` locally, or Semgrep can stall for over a mi
 ## Known limitations (MVP)
 
 - **Not yet run end-to-end against live services.** Engine, scoring, tickets, ingest and triage are unit-tested; GitHub/Stripe/Supabase/Trigger wiring compiles and builds but needs a staging smoke test (see `docs/cursor-tasks.md`, task 1).
-- Readiness detectors are strongest for JS/TS (Next.js, Supabase, Stripe). Python gets secrets, dependency and Semgrep coverage only.
-- Pattern checks can match inside string literals (e.g. docs that mention `auth.getSession()`). AI may label those as likely false positives. That label does not change the official score, verdict, or ticket. The AI executive summary can still omit the finding from its narrative.
-- Regression alerts appear on the dashboard only; there is no email delivery yet.
-- Stripe refunds (`charge.refunded`) don't claw back unused audit credits. One-time audit credits are granted by `fulfill_audit_checkout` (see `docs/stripe-fulfillment.md`).
-- Architecture and performance are reported as "Not assessed" in rubric `2026.11-v1`.
-- `/terms` and `/privacy` are templates; have them reviewed before launch.
+- Readiness detectors are strongest for JS/TS (Next.js, Supabase, Stripe). Python gets secrets, dependency and Semgrep coverage only. String literals and comments are now ignored in pattern checks.
+- Regression alerts are stored and emailed when `RESEND_API_KEY` is set; the dashboard view remains available.
+- Stripe refunds (`charge.refunded`) now claw back one unused audit credit via `clawback_audit_credit` (migration `0008_refunds.sql`).
+- Architecture and performance are reported as "Not assessed" in rubric `2026.11-v2`.
+- `/terms` and `/privacy` have been expanded to match current product behavior; still have them reviewed by counsel before launch.

@@ -8,6 +8,7 @@ import type { AuditRow, FindingRow, RepositoryRow } from "@/lib/db/types";
 import { serverEnv } from "@/lib/env";
 import { commitComparison, downloadTarball, repoScopedToken, resolveHeadSha } from "@/lib/github/app";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { sendRegressionAlert } from "@/lib/email/send";
 
 /** Errors the user can act on; the run is not retried. */
 export class PermanentAuditError extends Error {
@@ -182,6 +183,25 @@ export async function runAudit(auditId: string): Promise<{ status: "completed" |
     };
     const result = await analyzeRepository(index, { kind: audit.kind, ingest: workspace.stats, provider, globalBudgetGuard, previous, changedFiles: changed, renames });
     if (!(await persist(audit, sha, result))) return { status: "skipped" };
+
+    // Fire-and-forget email for Pro monitoring regressions (never fails the audit)
+    if (audit.kind === "monitor" || audit.kind === "recheck") {
+      const alertItems = findingsThatAlert(result.findings).slice(0, 5);
+      if (alertItems.length > 0) {
+        const { data: profile } = await db.from("profiles").select("email").eq("id", audit.user_id).maybeSingle();
+        const email = profile?.email as string | undefined;
+        if (email) {
+          const appUrl = serverEnv().NEXT_PUBLIC_APP_URL;
+          void sendRegressionAlert({
+            to: email,
+            repoName: repo.full_name,
+            auditUrl: `${appUrl}/dashboard/audits/${audit.id}`,
+            items: alertItems.map((f) => ({ priority: f.priority, title: f.title })),
+          });
+        }
+      }
+    }
+
     return { status: "completed", score: result.scorecard.overall };
   } finally {
     await workspace.cleanup();

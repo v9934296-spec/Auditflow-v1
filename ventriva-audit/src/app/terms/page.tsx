@@ -4,19 +4,97 @@ export default function Terms() {
   return (
     <article className="mx-auto max-w-[70ch] space-y-4 px-5 py-16">
       <h1 className="text-4xl font-extrabold">Terms of Service</h1>
-      <p className="text-sm text-ink-soft">Template. Have it reviewed by a lawyer in your jurisdiction before launch, and set the effective date.</p>
-      <h2 className="pt-4 text-xl font-bold">The service</h2>
-      <p>Ventriva Audit performs automated static analysis of source code you authorize us to read and produces reports, scores and suggested fixes. It is an engineering aid. It is not a penetration test, a certification, a legal or compliance opinion, or a guarantee that your software is secure or fit for any purpose.</p>
-      <h2 className="pt-4 text-xl font-bold">Your responsibilities</h2>
-      <p>You must have the right to grant us access to every repository you connect. You remain responsible for reviewing and testing any change you make based on our reports.</p>
-      <h2 className="pt-4 text-xl font-bold">Payments and refunds</h2>
-      <p>Full audits are one-time purchases that grant one audit credit. Pro is billed monthly until cancelled from the billing portal; access continues to the end of the paid period. If an audit fails for a system reason, the credit is returned automatically.</p>
-      <h2 className="pt-4 text-xl font-bold">Acceptable use</h2>
-      <p>Do not use the service to analyze code you are not authorized to access, to probe our systems, or to resell results as a certification.</p>
-      <h2 className="pt-4 text-xl font-bold">Liability</h2>
-      <p>To the maximum extent permitted by law, the service is provided &ldquo;as is&rdquo; and our total liability is limited to the amount you paid in the twelve months before the claim.</p>
-      <h2 className="pt-4 text-xl font-bold">Changes</h2>
-      <p>We will notify you by email of material changes at least 14 days before they take effect.</p>
+      <p className="text-sm text-ink-soft">
+        Effective date: 16 November 2026. These terms govern use of Ventriva Audit (the “Service”).
+        Have them reviewed by a lawyer in your jurisdiction before relying on them.
+      </p>
+
+      <h2 className="pt-4 text-xl font-bold">1. The Service</h2>
+      <p>
+        Ventriva Audit performs automated static analysis of source code repositories you authorize us to access.
+        It produces an evidence-backed score, a launch-readiness scorecard, findings, and suggested tickets.
+        Analysis is deterministic-first. An optional large-language-model step only labels findings that already exist;
+        it cannot create new findings or change scores.
+      </p>
+      <p>
+        The Service is an engineering aid. It is not a penetration test, a security certification, a legal or compliance
+        opinion, or a guarantee that software is secure, complete, or fit for any purpose. Absence of a finding does not
+        mean absence of a problem. Categories marked “Not assessed” were not evaluated.
+      </p>
+
+      <h2 className="pt-4 text-xl font-bold">2. Accounts and access</h2>
+      <p>
+        You must create an account and confirm your email. You may only connect repositories you own or for which you
+        have explicit permission to grant read access. You remain responsible for all activity under your account.
+      </p>
+      <p>
+        We use a GitHub App with read-only Contents and Metadata permissions. You may revoke access at any time by
+        uninstalling the GitHub App; doing so removes the associated repositories and audits from the Service.
+      </p>
+
+      <h2 className="pt-4 text-xl font-bold">3. Plans and payments</h2>
+      <p>
+        The free tier provides a limited deterministic scan (one per account). A one-time full audit purchase grants
+        one audit credit. The Pro subscription is billed monthly in advance until cancelled through the billing portal;
+        access continues until the end of the paid period. Unused audit credits are not refunded except as described below.
+      </p>
+      <p>
+        Payments are processed by Stripe. We never see or store full card numbers. If an audit fails for a system reason
+        on our side, the credit is returned automatically. If you request a refund for a one-time audit purchase that has
+        not yet been used, we will claw back the unused credit. Subscriptions may be cancelled at any time; no partial-month
+        refunds are issued.
+      </p>
+
+      <h2 className="pt-4 text-xl font-bold">4. Acceptable use</h2>
+      <p>You agree not to:</p>
+      <ul className="list-disc pl-5 space-y-1">
+        <li>Connect repositories you are not authorized to access.</li>
+        <li>Attempt to reverse-engineer, probe, or disrupt the Service or its infrastructure.</li>
+        <li>Resell reports or scores as a formal certification or compliance attestation.</li>
+        <li>Use the Service to process code that contains malware or that violates applicable law.</li>
+        <li>Circumvent rate limits, cost ceilings, or other technical controls.</li>
+      </ul>
+
+      <h2 className="pt-4 text-xl font-bold">5. Your responsibilities</h2>
+      <p>
+        You are solely responsible for reviewing, testing, and deciding whether to implement any suggestion or ticket
+        generated by the Service. You must not rely on the score or findings as the sole basis for a production launch
+        decision. You retain all rights to your source code; we claim no ownership of it.
+      </p>
+
+      <h2 className="pt-4 text-xl font-bold">6. Intellectual property</h2>
+      <p>
+        The Service, including its scoring rubric, detectors, and user interface, is owned by us or our licensors.
+        You receive a limited, non-exclusive, non-transferable right to use the Service for its intended purpose.
+        Reports generated for you may be used internally; you may not publish them as third-party certifications.
+      </p>
+
+      <h2 className="pt-4 text-xl font-bold">7. Limitation of liability</h2>
+      <p>
+        To the maximum extent permitted by law, the Service is provided “as is” and “as available.” We disclaim all
+        warranties, express or implied, including merchantability, fitness for a particular purpose, and non-infringement.
+        Our total liability arising out of or related to these terms or the Service is limited to the amount you paid us
+        in the twelve (12) months preceding the claim. We are not liable for indirect, incidental, special, consequential,
+        or punitive damages, or for lost profits or data.
+      </p>
+
+      <h2 className="pt-4 text-xl font-bold">8. Termination</h2>
+      <p>
+        You may stop using the Service at any time. We may suspend or terminate access for material breach of these terms,
+        non-payment, or abuse. Upon termination, your right to use the Service ends. Data deletion is governed by the
+        Privacy Policy.
+      </p>
+
+      <h2 className="pt-4 text-xl font-bold">9. Changes to these terms</h2>
+      <p>
+        We may update these terms. Material changes will be notified by email at least 14 days before they take effect.
+        Continued use after the effective date constitutes acceptance.
+      </p>
+
+      <h2 className="pt-4 text-xl font-bold">10. Contact</h2>
+      <p>
+        Questions about these terms may be sent to the support address listed in the application.
+      </p>
     </article>
   );
 }
