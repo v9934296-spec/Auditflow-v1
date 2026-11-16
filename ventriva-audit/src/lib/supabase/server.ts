@@ -30,8 +30,8 @@ export async function getUser(): Promise<User | null> {
   return data.user;
 }
 
-export async function requireUser(): Promise<User> {
+export async function requireUser(next?: string): Promise<User> {
   const user = await getUser();
-  if (!user) redirect("/login");
+  if (!user) redirect(next ? `/login?${new URLSearchParams({ next })}` : "/login");
   return user;
 }

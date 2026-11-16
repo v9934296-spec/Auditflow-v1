@@ -7,7 +7,7 @@ type Change = { at: string; added: string[]; removed: string[] };
 export const metadata = { title: "Watch" };
 
 export default async function WatchPage({ searchParams }: { searchParams: Promise<{ notice?: string }> }) {
-  const user = await requireUser();
+  const user = await requireUser("/watch");
   const { notice } = await searchParams;
   const db = await supabaseServer();
   const { data, error } = await db.from("page_watches")
