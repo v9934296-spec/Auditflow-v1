@@ -25,7 +25,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  previous_period timestamptz;
+  entitlement_period timestamptz;
+  effective_start timestamptz;
+  effective_end timestamptz;
   previous_event bigint;
   previous_owner uuid;
 begin
@@ -58,8 +60,8 @@ begin
     on conflict (id) do nothing;
   if not found then return 'duplicate'; end if;
 
-  select s.user_id, s.current_period_start, s.last_event_created
-    into previous_owner, previous_period, previous_event
+  select s.user_id, s.last_event_created
+    into previous_owner, previous_event
     from public.subscriptions s
     where s.id = p_subscription_id for update;
   if previous_owner is not null and previous_owner <> p_user_id then
@@ -84,16 +86,27 @@ begin
     last_event_created = excluded.last_event_created,
     updated_at = now();
 
+  -- Recompute from all AuditFlow subscriptions. Canceling one subscription
+  -- must not revoke another active audit Pro subscription for this account.
+  select e.period_start into entitlement_period
+    from public.entitlements e where e.user_id = p_user_id for update;
+  if not found then raise exception 'ENTITLEMENT_MISSING'; end if;
+  select s.current_period_start, s.current_period_end
+    into effective_start, effective_end
+    from public.subscriptions s
+    where s.user_id = p_user_id and s.status in ('active','trialing','past_due')
+    order by s.current_period_end desc, s.last_event_created desc, s.id desc
+    limit 1;
+
   update public.entitlements
-    set plan = case when p_status in ('active','trialing','past_due') then 'pro'::public.plan_tier else 'free'::public.plan_tier end,
-        period_start = case when p_status in ('active','trialing','past_due') then p_period_start else null end,
-        period_end = case when p_status in ('active','trialing','past_due') then p_period_end else null end,
-        rechecks_used = case when previous_period is distinct from p_period_start then 0 else rechecks_used end,
+    set plan = case when effective_start is not null then 'pro'::public.plan_tier else 'free'::public.plan_tier end,
+        period_start = effective_start,
+        period_end = effective_end,
+        rechecks_used = case when entitlement_period is distinct from effective_start then 0 else rechecks_used end,
         updated_at = now()
     where user_id = p_user_id;
-  if not found then raise exception 'ENTITLEMENT_MISSING'; end if;
 
-  if p_status not in ('active','trialing','past_due') then
+  if effective_start is null then
     update public.repositories set monitoring_enabled = false where user_id = p_user_id;
   end if;
   return 'applied';
