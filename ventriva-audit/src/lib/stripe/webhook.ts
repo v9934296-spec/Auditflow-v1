@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import { belongsToAuditCheckout } from "@/lib/billing/products";
 import { serverEnv } from "@/lib/env";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { stripe } from "./stripe";
@@ -66,6 +67,8 @@ function checkoutSession(event: Stripe.Event): Stripe.Checkout.Session | null {
  */
 async function fulfillPaymentSession(event: Stripe.Event, session: Stripe.Checkout.Session): Promise<StripeHandlingResult> {
   const rawUser = session.metadata?.user_id ?? session.client_reference_id ?? "";
+  // A legacy Ventriva purchase must never be fulfilled as an AuditFlow credit.
+  if (!belongsToAuditCheckout(session.metadata)) return "ignored";
   const userId = UUID.test(rawUser) ? rawUser : null;
   const { data, error } = await supabaseAdmin().rpc("fulfill_audit_checkout", {
     p_event_id: event.id,
