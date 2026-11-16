@@ -3,6 +3,7 @@ import { PostButton } from "@/components/post-button";
 import { buttonStyles } from "@/components/ui/button";
 import { LIMITS, PRICING, PRO } from "@/lib/config/plans";
 import { getUser } from "@/lib/supabase/server";
+import { VALIDATION_APP_URL } from "@/lib/product/modules";
 
 export const metadata = { title: "Pricing" };
 
@@ -54,6 +55,15 @@ export default async function Pricing() {
           </section>
         ))}
       </div>
+      <section className="mt-10 rounded-[var(--radius-md)] border border-rule bg-sheet p-6">
+        <h2 className="text-xl font-bold">Validate an idea</h2>
+        <p className="mt-2 max-w-2xl text-ink-soft">
+          Idea validation is a separate Ventriva product with its own checkout, allowance balance,
+          subscription and billing portal. Linking accounts does not combine payment credits or transfer subscriptions.
+          View current plans in the validation app before purchasing.
+        </p>
+        <a href={VALIDATION_APP_URL} className={buttonStyles({ variant: "outline" })}>View validation plans in Ventriva</a>
+      </section>
       <p className="mt-8 text-sm text-ink-soft">If an audit fails for a system reason, the credit is refunded automatically. Rechecks verify specific fixes and are never presented as a complete security assessment.</p>
     </div>
   );

@@ -43,7 +43,7 @@ describe("fulfill_audit_checkout (postgres)", () => {
       end $$;
     `);
     const dir = path.join(process.cwd(), "supabase", "migrations");
-    for (const file of ["0001_init.sql", "0002_rate_limits.sql", "0003_finding_not_retested.sql", "0004_scan_recovery.sql", "0005_audit_checkout_fulfillment.sql", "0006_atomic_audit_completion.sql"]) {
+    for (const file of ["0001_init.sql", "0002_rate_limits.sql", "0003_finding_not_retested.sql", "0004_scan_recovery.sql", "0005_audit_checkout_fulfillment.sql", "0006_atomic_audit_completion.sql", "0007_m5_scoped_subscription.sql"]) {
       await setup.query(readFileSync(path.join(dir, file), "utf8"));
     }
     await setup.query(`insert into auth.users (id, email) values ($1, 'buyer@example.com'), ($2, 'other@example.com')`, [USER, OTHER]);
@@ -178,4 +178,57 @@ describe("fulfill_audit_checkout (postgres)", () => {
       client.release();
     }
   });
+  it("keeps subscription event, plan and renewal changes atomic and idempotent", async () => {
+    await pool.query("update public.profiles set stripe_customer_id = 'cus_m5' where id = $1", [USER]);
+    async function apply(event: string, created: number, status: string, start = "2026-01-01", end = "2026-02-01") {
+      const { rows } = await pool.query(
+        `select public.apply_audit_subscription_event($1, 'customer.subscription.updated', $2, 'sub_m5', 'cus_m5', $3::uuid,
+           'price_audit_pro', 'price_audit_pro', $4, $5::timestamptz, $6::timestamptz, false) as result`,
+        [event, created, USER, status, start, end],
+      );
+      return rows[0].result as string;
+    }
+    expect(await apply("evt_m5_initial", 100, "active")).toBe("applied");
+    let { rows } = await pool.query("select plan, period_start, rechecks_used from public.entitlements where user_id = $1", [USER]);
+    expect(rows[0].plan).toBe("pro");
+    expect(await apply("evt_m5_initial", 100, "active")).toBe("duplicate");
+
+    await pool.query("update public.entitlements set rechecks_used = 2 where user_id = $1", [USER]);
+    expect(await apply("evt_m5_same_period", 101, "active")).toBe("applied");
+    ({ rows } = await pool.query("select rechecks_used from public.entitlements where user_id = $1", [USER]));
+    expect(rows[0].rechecks_used).toBe(2);
+
+    expect(await apply("evt_m5_renew", 102, "active", "2026-02-01", "2026-03-01")).toBe("applied");
+    ({ rows } = await pool.query("select rechecks_used from public.entitlements where user_id = $1", [USER]));
+    expect(rows[0].rechecks_used).toBe(0);
+
+    expect(await apply("evt_m5_delayed", 99, "canceled")).toBe("stale");
+    ({ rows } = await pool.query("select plan from public.entitlements where user_id = $1", [USER]));
+    expect(rows[0].plan).toBe("pro");
+    expect(await apply("evt_m5_cancel", 103, "canceled", "2026-02-01", "2026-03-01")).toBe("applied");
+    ({ rows } = await pool.query("select plan from public.entitlements where user_id = $1", [USER]));
+    expect(rows[0].plan).toBe("free");
+  });
+
+  it("rejects cross-tenant customer mappings and wrong product prices without consuming the event", async () => {
+    const forbidden = "select public.apply_audit_subscription_event('evt_m5_tenant', 'customer.subscription.updated', 200, 'sub_foreign', 'cus_m5', $1::uuid, 'price_audit_pro', 'price_audit_pro', 'active', '2026-01-01'::timestamptz, '2026-02-01'::timestamptz, false)";
+    await expect(pool.query(forbidden, [OTHER])).rejects.toThrow(/STRIPE_CUSTOMER_OWNERSHIP_MISMATCH/);
+    await expect(pool.query(
+      "select public.apply_audit_subscription_event('evt_m5_wrong_price','customer.subscription.updated',200,'sub_wrong_price','cus_m5',$1::uuid,'price_legacy','price_audit_pro','active','2026-01-01'::timestamptz,'2026-02-01'::timestamptz,false)",
+      [USER],
+    )).rejects.toThrow(/INVALID_AUDIT_SUBSCRIPTION_EVENT/);
+    const { rows } = await pool.query("select count(*)::int as n from public.stripe_events where id in ('evt_m5_tenant','evt_m5_wrong_price')");
+    expect(rows[0].n).toBe(0);
+  });
+
+  it("restricts subscription reconciliation to service_role", async () => {
+    const signature = "public.apply_audit_subscription_event(text,text,bigint,text,text,uuid,text,text,text,timestamp with time zone,timestamp with time zone,boolean)";
+    for (const role of ["anon", "authenticated"]) {
+      const { rows } = await pool.query("select has_function_privilege($1, $2, 'execute') as allowed", [role, signature]);
+      expect(rows[0].allowed).toBe(false);
+    }
+    const { rows } = await pool.query("select has_function_privilege('service_role', $1, 'execute') as allowed", [signature]);
+    expect(rows[0].allowed).toBe(true);
+  });
+
 });

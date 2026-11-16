@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { auditCheckoutMetadata } from "@/lib/billing/products";
 import { serverEnv } from "@/lib/env";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -17,7 +18,7 @@ async function ensureCustomer(userId: string, email: string): Promise<string> {
   const { data: profile, error } = await db.from("profiles").select("stripe_customer_id").eq("id", userId).single();
   if (error) throw error;
   if (profile.stripe_customer_id) return profile.stripe_customer_id as string;
-  const customer = await stripe().customers.create({ email, metadata: { user_id: userId } }, { idempotencyKey: `customer-${userId}` });
+  const customer = await stripe().customers.create({ email, metadata: { user_id: userId, product: "audit" } }, { idempotencyKey: `customer-${userId}` });
   const { error: upErr } = await db.from("profiles").update({ stripe_customer_id: customer.id }).eq("id", userId).is("stripe_customer_id", null);
   if (upErr) throw upErr;
   return customer.id;
@@ -32,12 +33,12 @@ export async function createCheckoutSession(userId: string, email: string, kind:
     client_reference_id: userId,
     success_url: `${env.NEXT_PUBLIC_APP_URL}/dashboard?checkout=success`,
     cancel_url: `${env.NEXT_PUBLIC_APP_URL}/pricing?checkout=cancelled`,
-    metadata: { user_id: userId, kind },
+    metadata: auditCheckoutMetadata(userId, kind),
     allow_promotion_codes: true,
   };
   const session =
     kind === "audit"
-      ? await stripe().checkout.sessions.create({ ...common, mode: "payment", line_items: [{ price: env.STRIPE_PRICE_AUDIT, quantity: 1 }], payment_intent_data: { metadata: { user_id: userId, kind } } })
+      ? await stripe().checkout.sessions.create({ ...common, mode: "payment", line_items: [{ price: env.STRIPE_PRICE_AUDIT, quantity: 1 }], payment_intent_data: { metadata: auditCheckoutMetadata(userId, kind) } })
       : await stripe().checkout.sessions.create({ ...common, mode: "subscription", line_items: [{ price: env.STRIPE_PRICE_PRO, quantity: 1 }], subscription_data: { metadata: { user_id: userId } } });
   if (!session.url) throw new Error("Stripe did not return a checkout URL.");
   return session.url;

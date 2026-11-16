@@ -45,6 +45,7 @@ function paymentEvent(over: Partial<Stripe.Checkout.Session> = {}, id = "evt_1")
     id,
     object: "event",
     type: "checkout.session.completed",
+    created: 1_700_000_000,
     data: {
       object: {
         id: "cs_1",
@@ -81,6 +82,7 @@ describe("audit checkout fulfillment routing", () => {
   });
 
   it("does not call credit fulfillment for a subscription checkout", async () => {
+    rpc.mockResolvedValue({ data: "applied", error: null });
     retrieve.mockResolvedValue({
       id: "sub_1",
       customer: "cus_1",
@@ -92,21 +94,45 @@ describe("audit checkout fulfillment routing", () => {
     const event = paymentEvent({ mode: "subscription", subscription: "sub_1", metadata: { kind: "pro", user_id: userId } });
     const result = await handleStripeEvent(event);
     expect(result).toBe("processed");
-    expect(rpc).not.toHaveBeenCalled();
-    expect(insert).toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith("apply_audit_subscription_event", expect.objectContaining({
+      p_subscription_id: "sub_1", p_customer_id: "cus_1", p_user_id: userId,
+      p_price_id: "price_pro_test", p_expected_price_id: "price_pro_test",
+    }));
+    expect(insert).not.toHaveBeenCalled();
     expect(retrieve).toHaveBeenCalledWith("sub_1");
   });
 
-  it("treats a repeated subscription event id as a duplicate", async () => {
-    insert.mockResolvedValue({ error: { code: "23505", message: "duplicate" } });
+  it("treats a repeated subscription event id as a duplicate through the atomic RPC", async () => {
+    rpc.mockResolvedValue({ data: "duplicate", error: null });
+    retrieve.mockResolvedValue({
+      id: "sub_1", customer: "cus_1", status: "active",
+      cancel_at_period_end: false,
+      metadata: { user_id: userId },
+      items: { data: [{ price: { id: "price_pro_test" }, current_period_start: 1_700_000_000, current_period_end: 1_700_000_100 }] },
+    });
     const event = {
-      id: "evt_sub",
-      type: "customer.subscription.updated",
+      id: "evt_sub", created: 1_700_000_000, type: "customer.subscription.updated",
       data: { object: { id: "sub_1" } },
     } as Stripe.Event;
     expect(await handleStripeEvent(event)).toBe("duplicate");
-    expect(retrieve).not.toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
   });
+  it("never processes a legacy validation subscription in the audit ledger", async () => {
+    retrieve.mockResolvedValue({
+      id: "sub_legacy", customer: "cus_legacy", status: "active",
+      cancel_at_period_end: false, metadata: { user_id: userId, product: "validation" },
+      items: { data: [{ price: { id: "price_validation_test" }, current_period_start: 1_700_000_000, current_period_end: 1_700_000_100 }] },
+    });
+    const event = { id: "evt_legacy", created: 1_700_000_000,
+      type: "customer.subscription.updated", data: { object: { id: "sub_legacy" } } } as Stripe.Event;
+    expect(await handleStripeEvent(event)).toBe("ignored");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it("rejects audit-like metadata belonging to a different product", async () => {
+    expect(await handleStripeEvent(paymentEvent({ metadata: { user_id: userId, kind: "audit", product: "validation" } }))).toBe("ignored");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
 });
 
 describe("webhook signature boundary", () => {
