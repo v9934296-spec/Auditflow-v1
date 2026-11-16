@@ -23,7 +23,7 @@ export default function ValidatePage() {
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <a href={VALIDATION_APP_URL} className={buttonStyles({ size: "lg" })}>
-            Open validation account settings <span aria-hidden="true">↗</span>
+            Open the validation app <span aria-hidden="true">↗</span>
           </a>
           <Link href="/dashboard" className={buttonStyles({ variant: "outline", size: "lg" })}>Go to technical audits</Link>
         </div>
