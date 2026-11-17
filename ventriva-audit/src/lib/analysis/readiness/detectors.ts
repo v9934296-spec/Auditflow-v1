@@ -79,10 +79,10 @@ function stripStringsAndComments(src: string): string {
   return out;
 }
 
-async function grep(ctx: Ctx, files: string[], re: RegExp): Promise<{ path: string; line: number; text: string } | null> {
+async function grep(ctx: Ctx, files: string[], re: RegExp, keepStrings = false): Promise<{ path: string; line: number; text: string } | null> {
   for (const p of files) {
     const raw = await ctx.repo.read(p);
-    const text = p.match(/\.(ts|tsx|js|jsx|mjs|cjs)$/) ? stripStringsAndComments(raw) : raw;
+    const text = !keepStrings && p.match(/\.(ts|tsx|js|jsx|mjs|cjs)$/) ? stripStringsAndComments(raw) : raw;
     const m = re.exec(text);
     if (m) return { path: p, line: lineOf(raw, m.index), text: raw };
   }
@@ -335,7 +335,7 @@ async function billingChecks(ctx: Ctx): Promise<CheckResult[]> {
 
   if (!hasDep(ctx, "stripe")) return out; // deeper checks are Stripe-server specific
 
-  const handlesEvents = await grep(ctx, ctx.serverFiles, /(checkout\.session\.completed|customer\.subscription\.(created|updated|deleted)|invoice\.(paid|payment_succeeded|payment_failed))/);
+  const handlesEvents = await grep(ctx, ctx.serverFiles, /(checkout\.session\.completed|customer\.subscription\.(created|updated|deleted)|invoice\.(paid|payment_succeeded|payment_failed))/, true);
   const verifies = await grep(ctx, ctx.serverFiles, /webhooks\.constructEvent(Async)?\s*\(/);
 
   const syncBase = { id: "stripe-webhooks", category: "launch_readiness" as const, area: "billing" as const, label: "Payment state synced from Stripe webhooks" };
