@@ -66,7 +66,7 @@ Developer settings → GitHub Apps → New:
 
 ### 4. Stripe
 1. Create two prices: a one-time **$29** price → `STRIPE_PRICE_AUDIT`, and a recurring **$19.99/month** price → `STRIPE_PRICE_PRO`.
-2. Add a webhook endpoint at `<APP_URL>/api/stripe/webhook` with events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy the signing secret.
+2. Add a webhook endpoint at `<APP_URL>/api/stripe/webhook` with events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `charge.refunded`. Copy the signing secret.
 3. Enable the Customer Portal (Settings → Billing → Customer portal).
 4. Local testing: `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
 
@@ -99,6 +99,6 @@ Set `SEMGREP_ENABLE_VERSION_CHECK=0` locally, or Semgrep can stall for over a mi
 - **Not yet run end-to-end against live services.** Engine, scoring, tickets, ingest and triage are unit-tested; GitHub/Stripe/Supabase/Trigger wiring compiles and builds but needs a staging smoke test (see `docs/cursor-tasks.md`, task 1).
 - Readiness detectors are strongest for JS/TS (Next.js, Supabase, Stripe). Python gets secrets, dependency and Semgrep coverage only. String literals and comments are now ignored in pattern checks.
 - Regression alerts are stored and emailed when `RESEND_API_KEY` is set; the dashboard view remains available.
-- Stripe refunds (`charge.refunded`) now claw back one unused audit credit via `clawback_audit_credit` (migration `0008_refunds.sql`).
+- A full Stripe refund for a fulfilled audit checkout can claw back one unused credit, once per checkout. Apply migration `0009_audit_refund_reconciliation.sql` before deploying the refund handler. Reconcile legacy purchases without a fulfillment row using `docs/stripe-fulfillment.md`.
 - Architecture and performance are reported as "Not assessed" in rubric `2026.11-v2`.
 - `/terms` and `/privacy` have been expanded to match current product behavior; still have them reviewed by counsel before launch.
