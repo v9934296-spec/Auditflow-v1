@@ -184,7 +184,7 @@ export async function runAudit(auditId: string): Promise<{ status: "completed" |
     const result = await analyzeRepository(index, { kind: audit.kind, ingest: workspace.stats, provider, globalBudgetGuard, previous, changedFiles: changed, renames });
     if (!(await persist(audit, sha, result))) return { status: "skipped" };
 
-    // Fire-and-forget email for Pro monitoring regressions (never fails the audit)
+    // Attempt email delivery after the dashboard alert has been persisted
     if (audit.kind === "monitor" || audit.kind === "recheck") {
       const alertItems = findingsThatAlert(result.findings).slice(0, 5);
       if (alertItems.length > 0) {
@@ -192,7 +192,7 @@ export async function runAudit(auditId: string): Promise<{ status: "completed" |
         const email = profile?.email as string | undefined;
         if (email) {
           const appUrl = serverEnv().NEXT_PUBLIC_APP_URL;
-          void sendRegressionAlert({
+          await sendRegressionAlert({
             to: email,
             repoName: repo.full_name,
             auditUrl: `${appUrl}/dashboard/audits/${audit.id}`,

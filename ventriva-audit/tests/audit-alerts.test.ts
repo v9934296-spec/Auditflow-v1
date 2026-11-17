@@ -55,7 +55,7 @@ it.each(["monitor", "recheck", "full_audit"] as const)("persists eligible alerts
     return {
       delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
       update: () => ({ eq: () => ({ in: () => selectedAudit, eq: () => selectedAudit }) }),
-      select: () => ({ eq: () => ({ single: () => ({ data: table === "audits" ? audit : repo }) }) }),
+      select: () => ({ eq: () => ({ single: () => ({ data: table === "audits" ? audit : repo }), maybeSingle: () => ({ data: null, error: null }) }) }),
     };
   });
   vi.mocked(supabaseAdmin).mockReturnValue({ from, rpc } as unknown as ReturnType<typeof supabaseAdmin>);

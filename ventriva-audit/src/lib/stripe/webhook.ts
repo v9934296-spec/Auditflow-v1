@@ -117,18 +117,24 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<StripeHand
 
 async function handleRefund(event: Stripe.Event): Promise<StripeHandlingResult> {
   const charge = event.data.object as Stripe.Charge;
-  const customerId = typeof charge.customer === "string" ? charge.customer : charge.customer?.id;
-  if (!customerId) return "ignored";
-  const userId = await userIdForCustomer(customerId);
-  if (!userId) return "unreconciled";
+  if (!charge.refunded || charge.amount_refunded < charge.amount) return "ignored";
 
-  // Only claw back an unused credit for one-time audit purchases
+  const paymentIntent = typeof charge.payment_intent === "string"
+    ? charge.payment_intent
+    : charge.payment_intent?.id;
+  if (!paymentIntent) return "ignored";
+
+  const sessions = await stripe().checkout.sessions.list({ payment_intent: paymentIntent, limit: 2 });
+  const session = sessions.data[0];
+  if (!session || session.mode !== "payment" || !belongsToAuditCheckout(session.metadata)) return "ignored";
+  if (sessions.data.length !== 1 || sessions.has_more) throw new Error("Ambiguous refunded checkout session");
+
   const { data, error } = await supabaseAdmin().rpc("clawback_audit_credit", {
     p_event_id: event.id,
-    p_user_id: userId,
+    p_session_id: session.id,
   });
   if (error) throw error;
-  if (data === "decremented") return "processed";
-  if (data === "duplicate" || data === "no_credit") return "duplicate";
-  return "ignored";
+  if (data === "duplicate") return "duplicate";
+  if (data === "decremented" || data === "no_credit") return "processed";
+  throw new Error("Unexpected audit refund reconciliation response");
 }

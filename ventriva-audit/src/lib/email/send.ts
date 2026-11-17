@@ -19,6 +19,7 @@ export async function sendRegressionAlert(opts: {
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
+      signal: AbortSignal.timeout(5_000),
       headers: {
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
