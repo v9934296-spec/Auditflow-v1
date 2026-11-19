@@ -24,20 +24,28 @@ export function InspectionTag({
   swing?: boolean;
 }) {
   const t = TONE[verdict];
+  const graded = verdict !== "insufficient_coverage" && score !== null && Number.isFinite(score) && score >= 0 && score <= 100;
+  const rating = graded ? (score / 10).toFixed(1) : null;
   return (
-    <div className={cn("tag w-full max-w-[19rem] shadow-[0_18px_40px_-24px_rgb(20_33_61/0.6)]", t.bg, t.fg, swing && "tag-swing", className)} role="img" aria-label={`${VERDICT_LABELS[verdict]}, score ${score ?? "not available"}`}>
+    <div className={cn("tag w-full max-w-[19rem] shadow-[0_18px_40px_-24px_rgb(20_33_61/0.6)]", t.bg, t.fg, swing && "tag-swing", className)} role="group" aria-label={`${VERDICT_LABELS[verdict]}, ${rating === null ? "Not graded" : `inspection score ${rating} out of 10`}`}>
       <p className="tag-stamp text-2xl leading-none">{t.stamp}</p>
       <p className="mt-1 text-sm opacity-85">{VERDICT_LABELS[verdict]}</p>
-      <div className="mt-6 flex items-end justify-between border-t border-current/30 pt-4">
-        <div>
-          <p className="font-[family-name:var(--font-display)] text-6xl font-black leading-none [font-stretch:80%]">{score ?? "—"}</p>
-          <p className="mt-1 text-xs opacity-80">out of 100</p>
+      <p className="mt-5 text-xs font-semibold uppercase tracking-widest">Inspection score</p>
+      <div className="report-rating">
+        <svg viewBox="0 0 180 180" aria-hidden="true" focusable="false">
+          <circle cx="90" cy="90" r="79" className="report-rating-track" />
+          {graded ? <circle cx="90" cy="90" r="79" className="report-rating-fill" pathLength="100" strokeDasharray={`${score} 100`} transform="rotate(-90 90 90)" /> : null}
+        </svg>
+        <div className="report-rating-label">
+          <p className={rating === null ? "report-rating-ungraded" : "report-rating-value"}>{rating ?? "Not graded"}</p>
+          {rating !== null ? <p className="text-xs">out of 10</p> : <p className="mt-1 text-xs">Evidence incomplete</p>}
         </div>
-        <dl className="text-right text-sm">
-          <div><dt className="inline opacity-80">Blockers </dt><dd className="inline font-bold">{counts.P0}</dd></div>
-          <div><dt className="inline opacity-80">High risk </dt><dd className="inline font-bold">{counts.P1}</dd></div>
-        </dl>
       </div>
+      <dl className="report-tag-counts">
+        <div><dd>{counts.P0}</dd><dt>Blockers</dt></div>
+        <div><dd>{counts.P1}</dd><dt>High risk</dt></div>
+      </dl>
+      <p className="mt-4 text-xs">{graded ? "Existing rubric score ÷ 10. Higher is better within the assessed scope." : "A score is withheld until there is enough inspection evidence."}</p>
       {meta?.length ? <p className="mt-4 text-xs opacity-75">{meta.join(" / ")}</p> : null}
     </div>
   );

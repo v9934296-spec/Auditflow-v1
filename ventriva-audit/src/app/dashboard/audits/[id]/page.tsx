@@ -2,11 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { InspectionTag } from "@/components/inspection-tag";
+import { ReportCategoryScores, ReportSignals } from "@/components/report-signals";
 import { PostButton } from "@/components/post-button";
 import { Badge } from "@/components/ui/badge";
 import { buttonStyles } from "@/components/ui/button";
 import type { AreaStatus, Verdict } from "@/lib/analysis/scoring";
-import { CATEGORY_LABELS, READINESS_AREA_LABELS, type FindingChange, type Priority } from "@/lib/analysis/types";
+import { READINESS_AREA_LABELS, type FindingChange, type Priority } from "@/lib/analysis/types";
 import { LIMITS } from "@/lib/config/plans";
 import type { AuditRow, FindingRow } from "@/lib/db/types";
 import { KIND_LABEL, timeAgo } from "@/lib/format";
@@ -106,6 +107,8 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
             </section>
           ) : null}
 
+          <ReportSignals counts={Object.fromEntries(priorities.map((p) => [p, open.filter((f) => f.priority === p).length])) as Record<Priority, number>} coverage={audit.coverage} />
+
           {comparing ? (
             <section className="flex flex-wrap gap-8 rounded-[var(--radius-md)] border border-rule bg-sheet p-5">
               <div><p className="text-3xl font-black text-verified">{fixed.length}</p><p className="text-sm text-ink-soft">Fixed</p></div>
@@ -147,31 +150,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
             </section>
           ) : null}
 
-          {card ? (
-            <section>
-              <h2 className="text-2xl font-bold">Engineering scores</h2>
-              <table className="mt-4 w-full max-w-xl text-sm">
-                <tbody className="divide-y divide-rule">
-                  {card.categories.map((c) => (
-                    <tr key={c.category}>
-                      <th scope="row" className="py-2 text-left font-semibold">{CATEGORY_LABELS[c.category]}</th>
-                      <td className="w-1/2 py-2">
-                        {c.score === null ? (
-                          <span className="text-ink-soft" title={c.reason}>Not assessed</span>
-                        ) : (
-                          <div className="flex items-center gap-3">
-                            <div className="h-2 flex-1 rounded-full bg-rule" aria-hidden><div className={`h-full rounded-full ${c.score < 50 ? "bg-blocked" : c.score < 80 ? "bg-caution" : "bg-verified"}`} style={{ width: `${c.score}%` }} /></div>
-                            <span className="w-8 text-right font-semibold tabular-nums">{c.score}</span>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-3 max-w-[70ch] text-sm text-ink-soft">{card.coverageNote}</p>
-            </section>
-          ) : null}
+          {card ? <ReportCategoryScores categories={card.categories} coverageNote={card.coverageNote} /> : null}
 
           <section>
             <h2 className="text-2xl font-bold">Findings</h2>
