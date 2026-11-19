@@ -17,13 +17,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;600&display=swap"
         />
       </head>
       <body className="min-h-screen">
         <SiteHeader />
         <main>{children}</main>
-        <footer className="mt-24 border-t border-rule">
+        <footer className="mt-12 border-t border-rule">
           <div className="mx-auto flex max-w-6xl flex-wrap justify-between gap-4 px-5 py-8 text-sm text-ink-soft">
             <p>A static engineering review. Not a substitute for a professional penetration test.</p>
             <nav className="flex gap-5">

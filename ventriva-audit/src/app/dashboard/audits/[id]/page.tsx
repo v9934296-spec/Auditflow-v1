@@ -40,7 +40,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
     return (
       <div className="mx-auto max-w-2xl px-5 py-20">
         <AutoRefresh />
-        <h1 className="text-3xl font-extrabold">Inspecting {repoName}</h1>
+        <h1 className="text-2xl font-semibold">Inspecting {repoName}</h1>
         <p className="mt-3 text-ink-soft">{audit.status === "queued" ? "Waiting for a worker." : "Downloading the repository and running the scanners."} Most audits finish in two to five minutes. You can leave this page; the report will be here.</p>
         <div className="mt-8 h-2 overflow-hidden rounded-full bg-rule" aria-hidden>
           <div className={`h-full bg-ink ${audit.status === "queued" ? "w-1/6" : "w-3/5"} transition-[width] duration-700`} />
@@ -52,7 +52,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
   if (audit.status === "failed") {
     return (
       <div className="mx-auto max-w-2xl px-5 py-20">
-        <h1 className="text-3xl font-extrabold">The inspection didn&rsquo;t finish</h1>
+        <h1 className="text-2xl font-semibold">The inspection didn&rsquo;t finish</h1>
         <p className="mt-3">{audit.error ?? "The audit failed."}</p>
         <p className="mt-2 text-sm text-ink-soft">Any credit used for this run has been returned to your account.</p>
         <Link href="/dashboard" className={`${buttonStyles()} mt-6`}>Back to dashboard</Link>
@@ -72,13 +72,13 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
   const priorities: Priority[] = ["P0", "P1", "P2", "P3"];
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-10">
+    <div className="mx-auto max-w-6xl px-5 py-6">
       <p className="text-sm text-ink-soft">
         <Link href={`/dashboard/repos/${audit.repositories?.id ?? ""}`} className="underline-offset-4 hover:underline">{repoName}</Link> / {KIND_LABEL[audit.kind]}, {timeAgo(audit.completed_at)}
       </p>
 
-      <div className="mt-6 grid gap-10 lg:grid-cols-[19rem_1fr]">
-        <aside className="lg:sticky lg:top-6 lg:self-start">
+      <div className="mt-5 grid gap-6 lg:grid-cols-[17rem_1fr]">
+        <aside className="report-sidebar lg:sticky lg:top-6 lg:self-start">
           <InspectionTag verdict={(audit.verdict ?? "insufficient_coverage") as Verdict} score={audit.overall_score} counts={{ P0: card?.counts.P0 ?? 0, P1: card?.counts.P1 ?? 0 }} meta={[(audit.commit_sha ?? "").slice(0, 7), `rubric ${audit.rubric_version ?? "?"}`]} swing />
           <div className="mt-6 space-y-2">
             {limits.ticketsEnabled ? (
@@ -99,11 +99,11 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
           ) : null}
         </aside>
 
-        <div className="min-w-0 space-y-12">
+        <div className="min-w-0 space-y-6">
           {audit.summary ? (
             <section>
-              <h1 className="text-3xl font-extrabold">Inspection report</h1>
-              <p className="mt-3 max-w-[70ch] text-lg leading-relaxed">{audit.summary}</p>
+              <h1 className="text-2xl font-semibold">Inspection report</h1>
+              <p className="mt-3 max-w-[70ch] text-base leading-relaxed">{audit.summary}</p>
             </section>
           ) : null}
 
@@ -121,7 +121,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
 
           {card ? (
             <section>
-              <h2 className="text-2xl font-bold">Business launch readiness</h2>
+              <h2 className="text-xl font-semibold">Business launch readiness</h2>
               <p className="mt-1 text-sm text-ink-soft">Can this app accept and keep paying customers?</p>
               <div className="mt-5 grid gap-x-8 gap-y-6 md:grid-cols-2">
                 {card.readiness.map((area) => (
@@ -153,7 +153,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
           {card ? <ReportCategoryScores categories={card.categories} coverageNote={card.coverageNote} /> : null}
 
           <section>
-            <h2 className="text-2xl font-bold">Findings</h2>
+            <h2 className="text-xl font-semibold">Findings</h2>
             {open.length === 0 ? <p className="mt-3 text-ink-soft">No open findings within the assessed scope.</p> : null}
             {priorities.map((p) => {
               const group = open.filter((f) => f.priority === p);
@@ -175,7 +175,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
                           <div className="space-y-4 border-t border-rule p-4 text-sm">
                             <p className="max-w-[75ch]">{f.description}</p>
                             {f.file_path ? <p className="code-excerpt text-ink-soft">{f.file_path}{f.start_line ? `:${f.start_line}` : ""}</p> : null}
-                            {f.snippet ? <pre className="code-excerpt overflow-x-auto rounded-[var(--radius-sm)] bg-ink p-3 text-white/90">{f.snippet}</pre> : null}
+                            {f.snippet ? <pre className="code-excerpt overflow-x-auto rounded-[var(--radius-sm)] bg-paper p-3 text-ink">{f.snippet}</pre> : null}
                             <div>
                               <p className="font-semibold">Evidence</p>
                               {f.change === "not_retested" && f.evidence.facts?.verifiedFix === true ? <p className="text-ink-soft">Previously verified fixed. This scan did not re-test the relevant evidence, so the fix is not newly confirmed.</p> : null}
@@ -198,7 +198,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
 
           {fixed.length ? (
             <section>
-              <h2 className="text-2xl font-bold">Fixed since the last audit</h2>
+              <h2 className="text-xl font-semibold">Fixed since the last audit</h2>
               <ul className="mt-3 space-y-1 text-sm">
                 {fixed.map((f) => <li key={f.id} className="flex gap-2"><span className="font-bold text-verified">✓</span><span className="line-through decoration-ink/30">{f.title}</span></li>)}
               </ul>
@@ -207,7 +207,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
 
           {audit.coverage ? (
             <section>
-              <h2 className="text-2xl font-bold">What was inspected</h2>
+              <h2 className="text-xl font-semibold">What was inspected</h2>
               <p className="mt-2 text-sm text-ink-soft">This is a static inspection of repository files at the recorded commit. The app was not run. Live authentication, payments, deployed settings, runtime behavior and performance were not tested.</p>
               <p className="mt-2 text-sm text-ink-soft">{(audit.coverage.filesIngested ?? audit.coverage.filesAnalyzed).toLocaleString()} files ingested, {"filesInspected" in audit.coverage && audit.coverage.filesInspected != null ? `${audit.coverage.filesInspected.toLocaleString()} eligible source files positively inspected by Semgrep or ESLint` : "inspection count not recorded for this audit"}, {audit.coverage.filesSkipped.toLocaleString()} not extracted (dependencies, build output, binaries). Languages present: {Object.entries(audit.coverage.languages).map(([l, n]) => `${l} (${n})`).join(", ") || "none detected"}.</p>
               <table className="mt-4 w-full max-w-2xl text-sm">

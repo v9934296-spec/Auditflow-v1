@@ -1,11 +1,11 @@
 import { VERDICT_LABELS, type Verdict } from "@/lib/analysis/scoring";
 import { cn } from "@/lib/cn";
 
-const TONE: Record<Verdict, { bg: string; fg: string; stamp: string }> = {
-  not_launch_ready: { bg: "bg-blocked", fg: "text-white", stamp: "Do not launch" },
-  launch_with_fixes: { bg: "bg-caution", fg: "text-ink", stamp: "Fix before launch" },
-  launch_ready_in_scope: { bg: "bg-verified", fg: "text-white", stamp: "Cleared to launch" },
-  insufficient_coverage: { bg: "bg-ink-soft", fg: "text-white", stamp: "Not enough evidence" },
+const TONE: Record<Verdict, { stamp: string }> = {
+  not_launch_ready: { stamp: "Do not launch" },
+  launch_with_fixes: { stamp: "Fix before launch" },
+  launch_ready_in_scope: { stamp: "Cleared to launch" },
+  insufficient_coverage: { stamp: "Not enough evidence" },
 };
 
 export function InspectionTag({
@@ -14,7 +14,6 @@ export function InspectionTag({
   counts,
   meta,
   className,
-  swing = false,
 }: {
   verdict: Verdict;
   score: number | null;
@@ -27,10 +26,11 @@ export function InspectionTag({
   const graded = verdict !== "insufficient_coverage" && score !== null && Number.isFinite(score) && score >= 0 && score <= 100;
   const rating = graded ? (score / 10).toFixed(1) : null;
   return (
-    <div className={cn("tag w-full max-w-[19rem] shadow-[0_18px_40px_-24px_rgb(20_33_61/0.6)]", t.bg, t.fg, swing && "tag-swing", className)} role="group" aria-label={`${VERDICT_LABELS[verdict]}, ${rating === null ? "Not graded" : `inspection score ${rating} out of 10`}`}>
-      <p className="tag-stamp text-2xl leading-none">{t.stamp}</p>
-      <p className="mt-1 text-sm">{VERDICT_LABELS[verdict]}</p>
-      <p className="mt-5 text-xs font-semibold uppercase tracking-widest">Inspection score</p>
+    <div className={cn("tag", className)} data-verdict={verdict} role="group" aria-label={`${VERDICT_LABELS[verdict]}, ${rating === null ? "Not graded" : `inspection score ${rating} out of 10`}`}>
+      <p className="tag-stamp">{t.stamp}</p>
+      <p className="report-tag-verdict">{VERDICT_LABELS[verdict]}</p>
+      <p className="report-tag-eyebrow">Inspection score</p>
+      <div className="report-tag-body">
       <div className="report-rating">
         <svg viewBox="0 0 180 180" aria-hidden="true" focusable="false">
           <circle cx="90" cy="90" r="79" className="report-rating-track" />
@@ -45,8 +45,9 @@ export function InspectionTag({
         <div><dt>Blockers</dt><dd>{counts.P0}</dd></div>
         <div><dt>High risk</dt><dd>{counts.P1}</dd></div>
       </dl>
-      <p className="mt-4 text-xs">{graded ? "Existing rubric score ÷ 10. Higher is better within the assessed scope." : "A score is withheld until there is enough inspection evidence."}</p>
-      {meta?.length ? <p className="mt-4 text-xs">{meta.join(" / ")}</p> : null}
+      </div>
+      <p className="report-tag-note">{graded ? "Existing rubric score ÷ 10. Higher is better within the assessed scope." : "A score is withheld until there is enough inspection evidence."}</p>
+      {meta?.length ? <p className="report-tag-meta">{meta.join(" / ")}</p> : null}
     </div>
   );
 }

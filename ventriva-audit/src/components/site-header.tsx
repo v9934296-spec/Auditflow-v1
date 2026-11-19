@@ -13,7 +13,7 @@ export async function SiteHeader() {
   return (
     <header className="border-b border-rule bg-sheet">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 py-3">
-        <Link href="/" className="font-[family-name:var(--font-display)] text-lg font-extrabold [font-stretch:115%]" aria-label="Ventriva home">
+        <Link href="/" className="font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight" aria-label="Ventriva home">
           Ventriva <span className="font-medium text-ink-soft">/ Founder workspace</span>
         </Link>
         <nav aria-label="Primary" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">

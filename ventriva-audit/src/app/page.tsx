@@ -24,7 +24,7 @@ export default function Home() {
 
       <section className="mx-auto grid max-w-6xl gap-12 px-5 pb-16 pt-16 md:grid-cols-[1fr_auto] md:pt-24">
         <div className="max-w-2xl">
-          <h1 className="text-5xl font-extrabold [font-stretch:92%] md:text-6xl">Know if your app can take paying customers before they find out it can&rsquo;t.</h1>
+          <h1 className="text-5xl font-semibold tracking-tight md:text-6xl">Know if your app can take paying customers before they find out it can&rsquo;t.</h1>
           <p className="mt-6 max-w-xl text-lg text-ink-soft">
             You built it with Cursor, Lovable or Claude Code. We read the repository the way a senior engineer would before launch day, and tell you what will break, with the file and line to prove it.
           </p>
@@ -94,10 +94,10 @@ export default function Home() {
       </section>
 
       <section className="mx-auto max-w-6xl px-5">
-        <div className="grid gap-8 rounded-[var(--radius-md)] bg-ink p-8 text-white md:grid-cols-[1fr_auto] md:items-center md:p-10">
+        <div className="grid gap-8 rounded-[var(--radius-md)] border border-rule bg-sheet p-8 text-ink md:grid-cols-[1fr_auto] md:items-center md:p-10">
           <div>
             <h2 className="text-3xl font-bold">Free scan, then ${PRICING.fullAuditUsd} for the full inspection.</h2>
-            <p className="mt-2 max-w-xl text-white/75">The free scan finds your blockers. The full audit adds AI-reviewed evidence, the complete scorecard and copy-paste fix tickets.</p>
+            <p className="mt-2 max-w-xl text-ink-soft">The free scan finds your blockers. The full audit adds AI-reviewed evidence, the complete scorecard and copy-paste fix tickets.</p>
           </div>
           <Link href="/login?next=/dashboard" className={buttonStyles({ variant: "caution", size: "lg" })}>Scan my repository</Link>
         </div>

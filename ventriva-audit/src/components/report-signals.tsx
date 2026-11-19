@@ -12,14 +12,14 @@ const PRIORITIES: { priority: Priority; label: string }[] = [
 export function ReportCategoryScores({ categories, coverageNote }: { categories: CategoryScore[]; coverageNote: string }) {
   return (
     <section>
-      <h2 className="text-2xl font-bold">Engineering scores</h2>
+      <h2 className="text-xl font-semibold">Engineering scores</h2>
       <p className="mt-1 text-sm text-ink-soft">Existing rubric scores on a 10-point scale. Unassessed areas stay ungraded.</p>
       <table className="mt-4 w-full text-sm">
         <tbody className="divide-y divide-rule">
           {categories.map((c) => (
             <tr key={c.category}>
-              <th scope="row" className="w-2/5 py-3 pr-4 text-left font-semibold">{CATEGORY_LABELS[c.category]}</th>
-              <td className="py-3">
+              <th scope="row" className="w-2/5 py-2.5 pr-4 text-left font-semibold">{CATEGORY_LABELS[c.category]}</th>
+              <td className="py-2.5">
                 {c.score === null ? <div><span className="text-ink-soft">Not assessed</span>{c.reason ? <p className="mt-1 text-xs text-ink-soft">{c.reason}</p> : null}</div> : (
                   <div className="flex items-center gap-3">
                     <div className="h-2 flex-1 rounded-full bg-rule" aria-hidden="true"><div className={`h-full rounded-full ${c.score < 50 ? "bg-blocked" : c.score < 80 ? "bg-caution" : "bg-verified"}`} style={{ width: `${c.score}%` }} /></div>

@@ -97,7 +97,7 @@ export function AccountLinkPanel() {
             className="w-full rounded-[var(--radius-sm)] border border-rule bg-paper px-3 py-2 font-mono text-sm focus:border-ink"
             placeholder="Enter your 32-character code"/>
           <div className="flex flex-wrap items-center gap-3">
-            <button type="submit" disabled={busy || code.trim().length !== 32} className="rounded-[var(--radius-sm)] bg-ink px-5 py-2 font-semibold text-white disabled:opacity-50">Connect accounts</button>
+            <button type="submit" disabled={busy || code.trim().length !== 32} className="rounded-[var(--radius-sm)] bg-verified px-5 py-2 font-semibold text-paper disabled:opacity-50">Connect accounts</button>
             <a href={VALIDATION_APP_URL} className="text-sm font-semibold underline underline-offset-4">Open Ventriva to generate code ↗</a>
           </div>
           <p className="text-xs text-ink-soft">The code expires in 10 minutes and works once. Never share it with another person.</p>
