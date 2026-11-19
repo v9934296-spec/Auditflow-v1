@@ -29,7 +29,7 @@ export function InspectionTag({
   return (
     <div className={cn("tag w-full max-w-[19rem] shadow-[0_18px_40px_-24px_rgb(20_33_61/0.6)]", t.bg, t.fg, swing && "tag-swing", className)} role="group" aria-label={`${VERDICT_LABELS[verdict]}, ${rating === null ? "Not graded" : `inspection score ${rating} out of 10`}`}>
       <p className="tag-stamp text-2xl leading-none">{t.stamp}</p>
-      <p className="mt-1 text-sm opacity-85">{VERDICT_LABELS[verdict]}</p>
+      <p className="mt-1 text-sm">{VERDICT_LABELS[verdict]}</p>
       <p className="mt-5 text-xs font-semibold uppercase tracking-widest">Inspection score</p>
       <div className="report-rating">
         <svg viewBox="0 0 180 180" aria-hidden="true" focusable="false">
@@ -42,11 +42,11 @@ export function InspectionTag({
         </div>
       </div>
       <dl className="report-tag-counts">
-        <div><dd>{counts.P0}</dd><dt>Blockers</dt></div>
-        <div><dd>{counts.P1}</dd><dt>High risk</dt></div>
+        <div><dt>Blockers</dt><dd>{counts.P0}</dd></div>
+        <div><dt>High risk</dt><dd>{counts.P1}</dd></div>
       </dl>
       <p className="mt-4 text-xs">{graded ? "Existing rubric score ÷ 10. Higher is better within the assessed scope." : "A score is withheld until there is enough inspection evidence."}</p>
-      {meta?.length ? <p className="mt-4 text-xs opacity-75">{meta.join(" / ")}</p> : null}
+      {meta?.length ? <p className="mt-4 text-xs">{meta.join(" / ")}</p> : null}
     </div>
   );
 }

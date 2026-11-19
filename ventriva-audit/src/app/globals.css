@@ -65,8 +65,9 @@
 .report-rating-value { font-family: var(--font-display); font-size: 64px; font-weight: 900; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 .report-rating-ungraded { max-width: 120px; font-family: var(--font-display); font-size: 28px; font-weight: 800; line-height: 1.1; text-align: center; }
 .report-tag-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-top: 1px solid currentColor; padding-top: 16px; }
-.report-tag-counts dd { font-size: 28px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.report-tag-counts dt { margin-top: 4px; font-size: 14px; }
+.report-tag-counts > div { display: flex; flex-direction: column; }
+.report-tag-counts dd { order: 1; font-size: 28px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.report-tag-counts dt { order: 2; margin-top: 4px; font-size: 14px; }
 .report-signals { padding: 24px; border: 1px solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-sheet); }
 .report-signal-header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .report-eyebrow { margin: 0 0 8px; color: var(--color-ink-soft); font-size: 11px; font-weight: 700; line-height: 1.5; letter-spacing: .1em; text-transform: uppercase; }
