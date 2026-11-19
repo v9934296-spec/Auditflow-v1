@@ -170,7 +170,7 @@ export function score(findings: Finding[], checks: CheckResult[], coverage: Cove
 
   const pct = Math.round(coverage.sourceCoverage * 100);
   const notAssessed = categories.filter((c) => c.score === null).map((c) => c.category);
-  const coverageNote = `${gap ? `Inspection incomplete: ${gap}. ` : ""}${unconfirmedPriorFix ? "Previously verified fixes were not retested in this scan; a fresh launch verdict cannot be issued. " : ""}${pct}% of source files were positively inspected by Semgrep or ESLint. ${coverage.filesIngested.toLocaleString()} files were ingested and ${coverage.filesInspected.toLocaleString()} source files were positively inspected. Not assessed: ${notAssessed.join(", ") || "none"}.`;
+  const coverageNote = `${gap ? `Inspection incomplete: ${gap}. ` : ""}${unconfirmedPriorFix ? "Previously verified fixes were not retested in this scan; a fresh launch verdict cannot be issued. " : ""}${pct}% of eligible source files were positively inspected by Semgrep or ESLint. ${coverage.filesIngested.toLocaleString()} files were ingested and ${coverage.filesInspected.toLocaleString()} source files were positively inspected. Not assessed: ${notAssessed.join(", ") || "none"}.`;
 
   return { rubricVersion: RUBRIC_VERSION, overall, verdict, categories, readiness: buildReadiness(checks, findings), counts, coverageNote };
 }

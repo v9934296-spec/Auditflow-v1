@@ -229,6 +229,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
           {audit.coverage ? (
             <section>
               <h2 className="text-2xl font-bold">What was inspected</h2>
+              <p className="mt-2 text-sm text-ink-soft">This is a static inspection of repository files at the recorded commit. The app was not run. Live authentication, payments, deployed settings, runtime behavior and performance were not tested.</p>
               <p className="mt-2 text-sm text-ink-soft">{(audit.coverage.filesIngested ?? audit.coverage.filesAnalyzed).toLocaleString()} files ingested, {"filesInspected" in audit.coverage && audit.coverage.filesInspected != null ? `${audit.coverage.filesInspected.toLocaleString()} eligible source files positively inspected by Semgrep or ESLint` : "inspection count not recorded for this audit"}, {audit.coverage.filesSkipped.toLocaleString()} not extracted (dependencies, build output, binaries). Languages present: {Object.entries(audit.coverage.languages).map(([l, n]) => `${l} (${n})`).join(", ") || "none detected"}.</p>
               <table className="mt-4 w-full max-w-2xl text-sm">
                 <thead><tr className="border-b border-ink text-left"><th className="py-1.5">Scanner</th><th>Status</th><th>Notes</th></tr></thead>
@@ -238,6 +239,25 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
                   ))}
                 </tbody>
               </table>
+              <div className="mt-4 space-y-3 text-sm">
+                {audit.coverage.scanners.map((s) => (
+                  <details key={s.name}>
+                    <summary className="cursor-pointer">{s.name}: files reported as inspected {s.inspectedFiles ? `(${s.inspectedFiles.length})` : "(not recorded)"}</summary>
+                    {s.inspectedFiles ? <ul className="mt-2 max-h-64 overflow-auto pl-4 font-mono text-xs">{s.inspectedFiles.map((p) => <li key={p} className="break-all">{p}</li>)}{!s.inspectedFiles.length ? <li>No files reported as inspected.</li> : null}</ul> : <p className="mt-2 text-ink-soft">This scanner did not record a file list. Its status alone does not establish file coverage.</p>}
+                  </details>
+                ))}
+                {audit.coverage.sourceInventory ? Object.entries({
+                  "Source inspected by Semgrep or ESLint": audit.coverage.sourceInventory.inspected,
+                  "Eligible source not inspected by either code scanner": audit.coverage.sourceInventory.notInspected,
+                  "Source outside supported code-scanner languages": audit.coverage.sourceInventory.unsupported,
+                }).map(([label, paths]) => (
+                  <details key={label}>
+                    <summary className="cursor-pointer">{label} ({paths.length})</summary>
+                    <ul className="mt-2 max-h-64 overflow-auto pl-4 font-mono text-xs">{paths.map((p) => <li key={p} className="break-all">{p}</li>)}{!paths.length ? <li>None in the ingested source inventory.</li> : null}</ul>
+                  </details>
+                )) : <p className="text-ink-soft">This older report did not record the source inventory. Files missing from scanner lists cannot be identified from this report; run a new inspection for that detail.</p>}
+                <p className="text-ink-soft">These lists cover extracted files only. Individual paths excluded during extraction were not recorded. Extraction exclusions: {Object.entries(audit.coverage.skippedReasons).map(([reason, count]) => `${reason}: ${count}`).join(", ") || "none recorded"}.{audit.coverage.truncated ? " Extraction was truncated; the repository was not fully inspected." : ""}</p>
+              </div>
               {audit.coverage.notes.length ? <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-ink-soft">{audit.coverage.notes.map((n) => <li key={n}>{n}</li>)}</ul> : null}
               <p className="mt-3 text-xs text-ink-soft">AI processing cost for this audit: ${Number(audit.ai_cost_usd).toFixed(2)}.</p>
             </section>
