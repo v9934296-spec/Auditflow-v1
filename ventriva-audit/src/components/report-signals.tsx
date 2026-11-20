@@ -9,6 +9,20 @@ const PRIORITIES: { priority: Priority; label: string }[] = [
   { priority: "P3", label: "Optional" },
 ];
 
+export function ReportNextAction({ counts }: { counts: Record<Priority, number> }) {
+  const priority = PRIORITIES.find(({ priority }) => counts[priority] > 0)?.priority;
+  const title = priority === "P0" ? `Review ${counts.P0} potential blocker${counts.P0 === 1 ? "" : "s"}`
+    : priority === "P1" ? `Review ${counts.P1} high-risk finding${counts.P1 === 1 ? "" : "s"}`
+    : priority ? `Review ${counts[priority]} ${priority === "P2" ? "important" : "optional"} finding${counts[priority] === 1 ? "" : "s"}`
+    : "Review inspection scope";
+  return (
+    <section className="report-next-action" aria-labelledby="next-action-title">
+      <div><p className="report-eyebrow">Next action</p><h2 id="next-action-title">{title}</h2><p>{priority ? "Confirm the evidence before deciding what to fix." : "No open findings were recorded. Check what was and was not inspected."}</p></div>
+      <a href={priority ? `#findings-${priority}` : "#inspection-scope"}>{priority ? "Review findings" : "Review scope"} <span aria-hidden="true">↓</span></a>
+    </section>
+  );
+}
+
 export function ReportCategoryScores({ categories, coverageNote }: { categories: CategoryScore[]; coverageNote: string }) {
   return (
     <section>
@@ -20,7 +34,7 @@ export function ReportCategoryScores({ categories, coverageNote }: { categories:
             <tr key={c.category}>
               <th scope="row" className="w-2/5 py-2.5 pr-4 text-left font-semibold">{CATEGORY_LABELS[c.category]}</th>
               <td className="py-2.5">
-                {c.score === null ? <div><span className="text-ink-soft">Not assessed</span>{c.reason ? <p className="mt-1 text-xs text-ink-soft">{c.reason}</p> : null}</div> : (
+                {c.score === null ? <div><span className="text-ink-soft">Not assessed</span>{c.reason ? <p className="report-category-reason">{c.reason}</p> : null}</div> : (
                   <div className="flex items-center gap-3">
                     <div className="h-2 flex-1 rounded-full bg-rule" aria-hidden="true"><div className={`h-full rounded-full ${c.score < 50 ? "bg-blocked" : c.score < 80 ? "bg-caution" : "bg-verified"}`} style={{ width: `${c.score}%` }} /></div>
                     <span className="w-16 shrink-0 text-right font-semibold tabular-nums">{(c.score / 10).toFixed(1)}<span className="text-xs font-normal text-ink-soft"> / 10</span></span>

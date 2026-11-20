@@ -76,7 +76,7 @@ export function AccountLinkPanel() {
 
   return (
     <section className="mt-8 rounded-[var(--radius-md)] border border-rule bg-sheet p-6" aria-labelledby="link-accounts-heading">
-      <h2 id="link-accounts-heading" className="text-xl font-bold">Connect your Ventriva accounts</h2>
+      <h2 id="link-accounts-heading" className="text-xl font-semibold">Connect your Ventriva accounts</h2>
       <p className="mt-2 text-sm text-ink-soft">
         Account linking requires access to both sign-ins. It enables read-only validation report summaries,
         not shared payment credits or automatic account migration.

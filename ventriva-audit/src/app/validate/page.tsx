@@ -7,15 +7,15 @@ export const metadata = { title: "Validate an idea" };
 
 export default function ValidatePage() {
   return (
-    <div className="mx-auto max-w-4xl px-5 py-12 md:py-20">
+    <div className="mx-auto max-w-4xl px-5 py-8 md:py-10">
       <p className="text-sm font-semibold uppercase tracking-widest text-ink-soft">Ventriva / Validate</p>
-      <h1 className="mt-3 text-4xl font-extrabold md:text-5xl">Find out what your business idea still needs to prove.</h1>
+      <h1 className="mt-3 text-3xl font-semibold md:text-5xl">Find out what your business idea still needs to prove.</h1>
       <p className="mt-5 max-w-2xl text-lg text-ink-soft">
         Ventriva&apos;s idea validator examines the market, competitors, demand evidence and financial assumptions.
         Claims are separated from what the research actually supports.
       </p>
-      <section className="mt-10 rounded-[var(--radius-md)] border border-rule bg-sheet p-6 md:p-8" aria-labelledby="separate-account-heading">
-        <h2 id="separate-account-heading" className="text-xl font-bold">Idea validation currently opens in a separate application.</h2>
+      <section className="mt-6 rounded-[var(--radius-md)] border border-rule bg-sheet p-6 md:p-8" aria-labelledby="separate-account-heading">
+        <h2 id="separate-account-heading" className="text-xl font-semibold">Idea validation currently opens in a separate application.</h2>
         <p className="mt-3 text-ink-soft">
           The validation app has its own account, sign-in, saved reports, subscriptions and billing.
           Your AuditFlow credentials and purchases do not automatically carry over.

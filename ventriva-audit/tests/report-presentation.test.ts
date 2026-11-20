@@ -2,7 +2,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { InspectionTag } from "@/components/inspection-tag";
-import { ReportSignals, ReportCategoryScores } from "@/components/report-signals";
+import { ReportSignals, ReportCategoryScores, ReportNextAction } from "@/components/report-signals";
+import { inspectionRating } from "@/lib/format";
 import type { Coverage } from "@/lib/analysis/types";
 
 function tag(score: number | null, verdict: "launch_with_fixes" | "insufficient_coverage" = "launch_with_fixes") {
@@ -19,6 +20,7 @@ describe("report score presentation", () => {
   it.each([null, Number.NaN, -1, 101])("withholds missing or invalid scores (%s)", (score) => {
     expect(tag(score)).toContain("Not graded");
     expect(tag(score)).not.toContain("out of 10");
+    expect(tag(score)).not.toContain("report-rating");
   });
   it("withholds a legacy numeric score when the verdict says coverage is insufficient", () => {
     expect(tag(95, "insufficient_coverage")).toContain("Not graded");
@@ -28,6 +30,35 @@ describe("report score presentation", () => {
     expect(tag(0)).toContain("0.0");
     expect(tag(0)).not.toContain("Not graded");
   });
+});
+
+it.each([
+  [{ P0: 2, P1: 3, P2: 4, P3: 1 }, "Review 2 potential blockers", "#findings-P0"],
+  [{ P0: 0, P1: 1, P2: 3, P3: 0 }, "Review 1 high-risk finding", "#findings-P1"],
+  [{ P0: 0, P1: 0, P2: 2, P3: 4 }, "Review 2 important findings", "#findings-P2"],
+  [{ P0: 0, P1: 0, P2: 0, P3: 1 }, "Review 1 optional finding", "#findings-P3"],
+  [{ P0: 0, P1: 0, P2: 0, P3: 0 }, "Review inspection scope", "#inspection-scope"],
+] as const)("directs the next action to recorded evidence (%j)", (counts, title, href) => {
+  const html = renderToStaticMarkup(createElement(ReportNextAction, { counts }));
+  expect(html).toContain(title);
+  expect(html).toContain(`href="${href}"`);
+  expect(html).not.toContain("safe to launch");
+});
+
+it("uses the same score scale and withheld states across report, dashboard and history", () => {
+  expect(inspectionRating(72)).toBe("7.2");
+  expect(inspectionRating(0)).toBe("0.0");
+  expect(inspectionRating(100)).toBe("10.0");
+  for (const value of [null, NaN, Infinity, -1, 101]) expect(inspectionRating(value)).toBeNull();
+  expect(inspectionRating(95, "insufficient_coverage")).toBeNull();
+});
+
+it("retains a recorded incomplete-scanner explanation without a decorative rating ring", () => {
+  const html = renderToStaticMarkup(createElement(InspectionTag, { score: null, verdict: "not_launch_ready", counts: { P0: 2, P1: 1 }, coverageNote: "Semgrep skipped. Score withheld.", meta: ["rubric 2026.11-v2"] }));
+  expect(html).toContain("Semgrep skipped. Score withheld.");
+  expect(html).toContain("Not launch ready");
+  expect(html).toContain("rubric 2026.11-v2");
+  expect(html).not.toContain("<svg");
 });
 
 it("does not confuse missing coverage with a measured zero or zero findings with safety", () => {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { InspectionTag } from "@/components/inspection-tag";
-import { ReportCategoryScores, ReportSignals } from "@/components/report-signals";
+import { ReportCategoryScores, ReportNextAction, ReportSignals } from "@/components/report-signals";
 import { PostButton } from "@/components/post-button";
 import { Badge } from "@/components/ui/badge";
 import { buttonStyles } from "@/components/ui/button";
@@ -38,7 +38,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
 
   if (audit.status === "queued" || audit.status === "running") {
     return (
-      <div className="mx-auto max-w-2xl px-5 py-20">
+      <div className="mx-auto max-w-2xl px-5 py-12">
         <AutoRefresh />
         <h1 className="text-2xl font-semibold">Inspecting {repoName}</h1>
         <p className="mt-3 text-ink-soft">{audit.status === "queued" ? "Waiting for a worker." : "Downloading the repository and running the scanners."} Most audits finish in two to five minutes. You can leave this page; the report will be here.</p>
@@ -51,7 +51,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
 
   if (audit.status === "failed") {
     return (
-      <div className="mx-auto max-w-2xl px-5 py-20">
+      <div className="mx-auto max-w-2xl px-5 py-12">
         <h1 className="text-2xl font-semibold">The inspection didn&rsquo;t finish</h1>
         <p className="mt-3">{audit.error ?? "The audit failed."}</p>
         <p className="mt-2 text-sm text-ink-soft">Any credit used for this run has been returned to your account.</p>
@@ -70,6 +70,10 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
   const limits = LIMITS[audit.kind];
   const comparing = audit.kind === "recheck" || audit.kind === "monitor";
   const priorities: Priority[] = ["P0", "P1", "P2", "P3"];
+  const counts = Object.fromEntries(priorities.map((p) => [p, open.filter((f) => f.priority === p).length])) as Record<Priority, number>;
+  const incompleteScanner = audit.coverage?.scanners.find((s) => ["secrets", "semgrep", "readiness"].includes(s.name) && s.status !== "ran");
+  const incompleteNote = incompleteScanner ? `${incompleteScanner.name === "semgrep" ? "Semgrep" : incompleteScanner.name} ${incompleteScanner.status}. Score withheld; review inspection scope.`
+    : audit.coverage?.truncated ? "Repository extraction was truncated. Score withheld." : undefined;
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-6">
@@ -79,7 +83,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[17rem_1fr]">
         <aside className="report-sidebar lg:sticky lg:top-6 lg:self-start">
-          <InspectionTag verdict={(audit.verdict ?? "insufficient_coverage") as Verdict} score={audit.overall_score} counts={{ P0: card?.counts.P0 ?? 0, P1: card?.counts.P1 ?? 0 }} meta={[(audit.commit_sha ?? "").slice(0, 7), `rubric ${audit.rubric_version ?? "?"}`]} swing />
+          <InspectionTag verdict={(audit.verdict ?? "insufficient_coverage") as Verdict} score={audit.overall_score} counts={counts} coverageNote={incompleteNote} meta={[(audit.commit_sha ?? "").slice(0, 7), `rubric ${audit.rubric_version ?? "?"}`]} />
           <div className="mt-6 space-y-2">
             {limits.ticketsEnabled ? (
               <>
@@ -100,22 +104,21 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
         </aside>
 
         <div className="min-w-0 space-y-6">
-          {audit.summary ? (
-            <section>
-              <h1 className="text-2xl font-semibold">Inspection report</h1>
-              <p className="mt-3 max-w-[70ch] text-base leading-relaxed">{audit.summary}</p>
-            </section>
-          ) : null}
+          <section>
+            <h1 className="text-2xl font-semibold">Inspection report</h1>
+            {audit.summary ? <p className="mt-3 max-w-[70ch] text-base leading-relaxed">{audit.summary}</p> : null}
+          </section>
 
-          <ReportSignals counts={Object.fromEntries(priorities.map((p) => [p, open.filter((f) => f.priority === p).length])) as Record<Priority, number>} coverage={audit.coverage} />
+          <ReportNextAction counts={counts} />
+          <ReportSignals counts={counts} coverage={audit.coverage} />
 
           {comparing ? (
             <section className="flex flex-wrap gap-8 rounded-[var(--radius-md)] border border-rule bg-sheet p-5">
-              <div><p className="text-3xl font-black text-verified">{fixed.length}</p><p className="text-sm text-ink-soft">Fixed</p></div>
-              <div><p className="text-3xl font-black">{open.filter((f) => f.change === "unresolved").length}</p><p className="text-sm text-ink-soft">Still open</p></div>
-              <div><p className="text-3xl font-black">{open.filter((f) => f.change === "new").length}</p><p className="text-sm text-ink-soft">New</p></div>
-              <div><p className="text-3xl font-black text-blocked">{open.filter((f) => f.change === "regressed").length}</p><p className="text-sm text-ink-soft">Regressed</p></div>
-              <div><p className="text-3xl font-black">{open.filter((f) => f.change === "not_retested").length}</p><p className="text-sm text-ink-soft">Not retested</p></div>
+              <div><p className="text-3xl font-semibold text-verified">{fixed.length}</p><p className="text-sm text-ink-soft">Fixed</p></div>
+              <div><p className="text-3xl font-semibold">{open.filter((f) => f.change === "unresolved").length}</p><p className="text-sm text-ink-soft">Still open</p></div>
+              <div><p className="text-3xl font-semibold">{open.filter((f) => f.change === "new").length}</p><p className="text-sm text-ink-soft">New</p></div>
+              <div><p className="text-3xl font-semibold text-blocked">{open.filter((f) => f.change === "regressed").length}</p><p className="text-sm text-ink-soft">Regressed</p></div>
+              <div><p className="text-3xl font-semibold">{open.filter((f) => f.change === "not_retested").length}</p><p className="text-sm text-ink-soft">Not retested</p></div>
             </section>
           ) : null}
 
@@ -127,7 +130,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
                 {card.readiness.map((area) => (
                   <div key={area.area}>
                     <div className="flex items-baseline justify-between border-b-2 border-ink pb-1.5">
-                      <h3 className="font-bold">{READINESS_AREA_LABELS[area.area]}</h3>
+                      <h3 className="font-semibold">{READINESS_AREA_LABELS[area.area]}</h3>
                       <span className={`text-sm font-semibold ${AREA_TONE[area.status]}`}>{AREA_WORD[area.status]}</span>
                     </div>
                     <ul className="mt-2 space-y-1.5 text-sm">
@@ -135,7 +138,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
                         const m = CHECK_MARK[c.status];
                         return (
                           <li key={c.id} className="flex gap-2">
-                            <span className={`w-4 shrink-0 font-bold ${m.cls}`} aria-label={m.label}>{m.sym}</span>
+                            <span className={`w-4 shrink-0 font-semibold ${m.cls}`} aria-label={m.label}>{m.sym}</span>
                             <span className={c.status === "not_applicable" ? "text-ink-soft" : ""}>
                               {c.label}
                               {c.status !== "pass" ? <span className="block text-xs text-ink-soft">{c.detail}</span> : null}
@@ -160,7 +163,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
               if (!group.length) return null;
               return (
                 <div key={p} className="mt-8">
-                  <h3 className="text-lg font-bold">{PRIORITY_HEADING[p]} <span className="font-normal text-ink-soft">({group.length})</span></h3>
+                  <h3 id={`findings-${p}`} className="scroll-mt-6 text-lg font-semibold">{PRIORITY_HEADING[p]} <span className="font-normal text-ink-soft">({group.length})</span></h3>
                   <ul className="mt-3 space-y-3">
                     {group.map((f) => (
                       <li key={f.id}>
@@ -200,13 +203,13 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
             <section>
               <h2 className="text-xl font-semibold">Fixed since the last audit</h2>
               <ul className="mt-3 space-y-1 text-sm">
-                {fixed.map((f) => <li key={f.id} className="flex gap-2"><span className="font-bold text-verified">✓</span><span className="line-through decoration-ink/30">{f.title}</span></li>)}
+                {fixed.map((f) => <li key={f.id} className="flex gap-2"><span className="font-semibold text-verified">✓</span><span className="line-through decoration-ink/30">{f.title}</span></li>)}
               </ul>
             </section>
           ) : null}
 
           {audit.coverage ? (
-            <section>
+            <section id="inspection-scope" className="scroll-mt-6">
               <h2 className="text-xl font-semibold">What was inspected</h2>
               <p className="mt-2 text-sm text-ink-soft">This is a static inspection of repository files at the recorded commit. The app was not run. Live authentication, payments, deployed settings, runtime behavior and performance were not tested.</p>
               <p className="mt-2 text-sm text-ink-soft">{(audit.coverage.filesIngested ?? audit.coverage.filesAnalyzed).toLocaleString()} files ingested, {"filesInspected" in audit.coverage && audit.coverage.filesInspected != null ? `${audit.coverage.filesInspected.toLocaleString()} eligible source files positively inspected by Semgrep or ESLint` : "inspection count not recorded for this audit"}, {audit.coverage.filesSkipped.toLocaleString()} not extracted (dependencies, build output, binaries). Languages present: {Object.entries(audit.coverage.languages).map(([l, n]) => `${l} (${n})`).join(", ") || "none detected"}.</p>
@@ -240,7 +243,7 @@ export default async function AuditReport({ params }: { params: Promise<{ id: st
               {audit.coverage.notes.length ? <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-ink-soft">{audit.coverage.notes.map((n) => <li key={n}>{n}</li>)}</ul> : null}
               <p className="mt-3 text-xs text-ink-soft">AI processing cost for this audit: ${Number(audit.ai_cost_usd).toFixed(2)}.</p>
             </section>
-          ) : null}
+          ) : <section id="inspection-scope" className="scroll-mt-6"><h2 className="text-xl font-semibold">What was inspected</h2><p className="mt-2 text-ink-soft">Coverage details were not recorded for this audit. Run a fresh inspection to establish its scope.</p></section>}
         </div>
       </div>
     </div>

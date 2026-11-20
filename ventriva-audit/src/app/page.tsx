@@ -16,8 +16,8 @@ export default function Home() {
   return (
     <>
       <section className="mx-auto max-w-6xl px-5 pt-12 md:pt-16" aria-labelledby="product-heading">
-        <p className="text-sm font-bold uppercase tracking-widest text-ink-soft">Ventriva / From idea to launch</p>
-        <h2 id="product-heading" className="mt-2 text-3xl font-extrabold md:text-4xl">Validate the opportunity. Audit the build. Monitor the fixes.</h2>
+        <p className="text-sm font-semibold uppercase tracking-widest text-ink-soft">Ventriva / From idea to launch</p>
+        <h2 id="product-heading" className="mt-2 text-3xl font-semibold md:text-3xl">Validate the opportunity. Audit the build. Monitor the fixes.</h2>
         <p className="mt-3 max-w-3xl text-ink-soft">One product direction, with separate evaluation engines and evidence. Idea validation currently opens in its own application with a separate account and billing.</p>
         <div className="mt-7"><ProductModuleCards /></div>
       </section>
@@ -50,13 +50,13 @@ export default function Home() {
       </section>
 
       <section className="border-y border-rule bg-sheet">
-        <div className="mx-auto max-w-6xl px-5 py-16">
-          <h2 className="text-3xl font-bold">What the launch inspection covers</h2>
+        <div className="mx-auto max-w-6xl px-5 py-6">
+          <h2 className="text-3xl font-semibold">What the launch inspection covers</h2>
           <p className="mt-2 max-w-2xl text-ink-soft">Every check reports pass, fail, or not applicable, so you see what was verified and not only what broke.</p>
-          <div className="mt-10 grid gap-x-10 gap-y-8 md:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-6 grid gap-x-10 gap-y-8 md:grid-cols-2 lg:grid-cols-3">
             {AREAS.map((a) => (
               <div key={a.name}>
-                <h3 className="border-b-2 border-ink pb-2 text-lg font-bold">{a.name}</h3>
+                <h3 className="border-b-2 border-ink pb-2 text-lg font-semibold">{a.name}</h3>
                 <ul className="mt-3 space-y-2 text-sm">
                   {a.checks.map((c) => (
                     <li key={c} className="flex gap-2"><span aria-hidden className="mt-1.5 inline-block size-2 shrink-0 rounded-full border-2 border-ink" />{c}</li>
@@ -65,7 +65,7 @@ export default function Home() {
               </div>
             ))}
             <div>
-              <h3 className="border-b-2 border-ink pb-2 text-lg font-bold">Security and dependencies</h3>
+              <h3 className="border-b-2 border-ink pb-2 text-lg font-semibold">Security and dependencies</h3>
               <ul className="mt-3 space-y-2 text-sm">
                 {["Leaked keys and committed .env files", "Known vulnerabilities in your exact dependency versions", "Injection, eval and unsafe patterns in your code"].map((c) => (
                   <li key={c} className="flex gap-2"><span aria-hidden className="mt-1.5 inline-block size-2 shrink-0 rounded-full border-2 border-ink" />{c}</li>
@@ -76,8 +76,8 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-5 py-16">
-        <h2 className="text-3xl font-bold">How it works</h2>
+      <section className="mx-auto max-w-6xl px-5 py-6">
+        <h2 className="text-3xl font-semibold">How it works</h2>
         <ol className="mt-8 grid gap-8 md:grid-cols-3">
           {[
             ["Connect a repository", "Install our GitHub App on just the repositories you choose. It can read code and nothing else."],
@@ -85,8 +85,8 @@ export default function Home() {
             ["Fix, recheck, launch", "Paste each ticket into Cursor or Claude Code. Recheck to confirm the fix landed and nothing new broke."],
           ].map(([title, body], i) => (
             <li key={title} className="border-l-4 border-caution pl-4">
-              <p className="font-[family-name:var(--font-display)] text-sm font-bold text-ink-soft">Step {i + 1}</p>
-              <h3 className="mt-1 text-xl font-bold">{title}</h3>
+              <p className="font-[family-name:var(--font-display)] text-sm font-semibold text-ink-soft">Step {i + 1}</p>
+              <h3 className="mt-1 text-xl font-semibold">{title}</h3>
               <p className="mt-2 text-ink-soft">{body}</p>
             </li>
           ))}
@@ -96,7 +96,7 @@ export default function Home() {
       <section className="mx-auto max-w-6xl px-5">
         <div className="grid gap-8 rounded-[var(--radius-md)] border border-rule bg-sheet p-8 text-ink md:grid-cols-[1fr_auto] md:items-center md:p-10">
           <div>
-            <h2 className="text-3xl font-bold">Free scan, then ${PRICING.fullAuditUsd} for the full inspection.</h2>
+            <h2 className="text-3xl font-semibold">Free scan, then ${PRICING.fullAuditUsd} for the full inspection.</h2>
             <p className="mt-2 max-w-xl text-ink-soft">The free scan finds your blockers. The full audit adds AI-reviewed evidence, the complete scorecard and copy-paste fix tickets.</p>
           </div>
           <Link href="/login?next=/dashboard" className={buttonStyles({ variant: "caution", size: "lg" })}>Scan my repository</Link>
