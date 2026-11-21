@@ -89,6 +89,11 @@ async function grep(ctx: Ctx, files: string[], re: RegExp, keepStrings = false):
   return null;
 }
 
+/** The source line at a 1-based line number. */
+function lineText(text: string, line: number): string {
+  return text.split("\n")[line - 1] ?? "";
+}
+
 async function grepAll(ctx: Ctx, files: string[], re: RegExp, limit = 20): Promise<{ path: string; line: number; text: string }[]> {
   const out: { path: string; line: number; text: string }[] = [];
   for (const p of files) {
@@ -173,14 +178,20 @@ const ANALYTICS: (string | RegExp)[] = ["posthog-js", "posthog-node", "posthog-r
 const EMAIL: (string | RegExp)[] = ["resend", "@sendgrid/mail", "postmark", "nodemailer", /^@react-email\//, "mailgun.js", "loops", "@aws-sdk/client-ses", "@react-email/components"];
 const ENV_VALIDATION: (string | RegExp)[] = [/^@t3-oss\/env/, "envalid", "env-var", "znv", "@julr/vite-plugin-validate-env"];
 
+/** Signals of a hand-rolled auth implementation: verifying an identity-provider token, or issuing/verifying sessions with JWTs. Presence proves accounts exist; it does not prove the implementation is secure, so the pass names what was found instead of claiming a vetted provider. */
+const CUSTOM_AUTH_RE = /\b(verify_oauth2_token|verify_google_id_token|verifyIdToken|OAuth2PasswordBearer|jwt\.encode|jwt\.decode|create_access_token|get_current_user)\b/;
+
 async function authChecks(ctx: Ctx): Promise<CheckResult[]> {
   const out: CheckResult[] = [];
   const base = { id: "auth-provider", category: "launch_readiness" as const, area: "auth" as const, label: "Authentication provider in place" };
   const provider = hasDep(ctx, ...AUTH_DEPS) ?? ((await grep(ctx, ctx.allCode, /\bsupabase\.auth\.(signIn|signUp|getUser)/)) ? "@supabase/supabase-js (auth)" : null);
+  const customAuth = provider ? null : await grep(ctx, ctx.allCode, CUSTOM_AUTH_RE);
   out.push(
     provider
       ? pass(base, `Detected ${provider}.`)
-      : absence(ctx, base, "high", "No authentication provider detected", "Paying customers need accounts. No known auth library or Supabase/Firebase auth usage was found, so either auth is missing or it is custom-built (which carries much higher risk).", "Adopt a maintained auth provider (Supabase Auth, Clerk, Auth.js, Better Auth). If auth is custom, have it reviewed specifically: password hashing (argon2/bcrypt), session expiry, CSRF and rate-limited login.", AUTH_DEPS.map(String)),
+      : customAuth
+        ? pass(base, `Custom authentication detected (${customAuth.path}) — accounts exist, but this audit did not verify the implementation's security (token verification, session expiry, rate limits).`)
+        : absence(ctx, base, "high", "No authentication provider detected", "Paying customers need accounts. No known auth library or Supabase/Firebase auth usage was found, so either auth is missing or it is custom-built (which carries much higher risk).", "Adopt a maintained auth provider (Supabase Auth, Clerk, Auth.js, Better Auth). If auth is custom, have it reviewed specifically: password hashing (argon2/bcrypt), session expiry, CSRF and rate-limited login.", AUTH_DEPS.map(String)),
   );
 
   // Supabase RLS
@@ -480,8 +491,13 @@ async function deploymentChecks(ctx: Ctx): Promise<CheckResult[]> {
   const rootPkg = ctx.pkgs.find((p) => p.path === "package.json") ?? ctx.pkgs[0];
 
   const buildBase = { id: "build-script", category: "launch_readiness" as const, area: "deployment_config" as const, label: "Production build script" };
+  // Mobile apps build through EAS / Expo rather than a `build` script: eas.json
+  // defines the production build, so its presence is a reproducible build path.
+  const mobileBuild =
+    ctx.repo.has("eas.json") || ctx.pkgs.some((p) => Object.values(p.pkg.scripts ?? {}).some((s) => /eas build|expo build/.test(s)));
   if (!nodeProject) out.push(na(buildBase, "Not a Node.js project."));
   else if (ctx.pkgs.some((p) => p.pkg.scripts?.build)) out.push(pass(buildBase, "`build` script defined."));
+  else if (mobileBuild) out.push(pass(buildBase, "Mobile build configured via EAS (eas.json)."));
   else out.push(absence(ctx, buildBase, "high", "No `build` script in package.json", "Hosting providers run a build command. Without one, deployments are manual and unreproducible.", 'Add a `"build"` script (e.g. `"next build"`) and make sure it passes locally from a clean checkout.', ["scripts.build"]));
 
   const lockBase = { id: "lockfile", category: "reliability" as const, area: "deployment_config" as const, label: "Dependency lockfile committed" };
@@ -496,10 +512,15 @@ async function deploymentChecks(ctx: Ctx): Promise<CheckResult[]> {
   else out.push(absence(ctx, envExBase, "medium", "No .env.example documenting required environment variables", "Deploying to a new environment (or recovering from an incident) requires guessing which variables are needed. Missing variables usually surface as runtime crashes in production.", "Commit a `.env.example` listing every variable with placeholder values and a one-line comment each.", [".env.example", ".env.sample"]));
 
   const valBase = { id: "env-validation", category: "reliability" as const, area: "deployment_config" as const, label: "Environment validated at startup" };
-  const validated = hasDep(ctx, ...ENV_VALIDATION) ?? (await grep(ctx, ctx.allCode, /z\.object\([\s\S]{0,400}process\.env|\.parse\(process\.env\)|safeParse\(process\.env\)/))?.path;
+  // Pydantic validates env the same way zod does for Node: a BaseSettings class
+  // with model/field validators that raise when a required variable is missing.
+  const validated =
+    hasDep(ctx, ...ENV_VALIDATION) ??
+    (await grep(ctx, ctx.allCode, /z\.object\([\s\S]{0,400}process\.env|\.parse\(process\.env\)|safeParse\(process\.env\)/))?.path ??
+    (await grep(ctx, ctx.allCode, /(class\s+\w+\s*\(\s*BaseSettings\s*\)|@model_validator|@field_validator)/))?.path;
   if (!usesEnv) out.push(na(valBase, "No environment variable usage found."));
   else if (validated) out.push(pass(valBase, `Environment validation found (${validated}).`));
-  else out.push(absence(ctx, valBase, "low", "Environment variables are not validated at startup", "A missing or malformed variable fails at the moment a customer hits that code path instead of at deploy time.", "Validate env once at startup with a schema (zod / @t3-oss/env) and fail the deploy if anything is missing.", ENV_VALIDATION.map(String)));
+  else out.push(absence(ctx, valBase, "low", "Environment variables are not validated at startup", "A missing or malformed variable fails at the moment a customer hits that code path instead of at deploy time.", "Validate env once at startup with a schema (zod / @t3-oss/env, or Pydantic BaseSettings with validators) and fail the deploy if anything is missing.", ENV_VALIDATION.map(String)));
 
   const engBase = { id: "runtime-pinned", category: "reliability" as const, area: "deployment_config" as const, label: "Runtime version pinned" };
   if (!nodeProject) out.push(na(engBase, "Not a Node.js project."));
@@ -545,14 +566,19 @@ async function deploymentChecks(ctx: Ctx): Promise<CheckResult[]> {
   if (ci.length > 0) out.push(pass(ciBase, `${ci.length} CI config file(s).`));
   else out.push(absence(ctx, ciBase, "medium", "No CI pipeline", "Nothing automatically checks that main builds and tests pass before it deploys.", "Add a GitHub Actions workflow that installs with the lockfile, type-checks, runs tests and builds on every pull request.", [".github/workflows/*.yml"]));
 
-  const localhost = await grepAll(
+  const localhostHits = await grepAll(
     ctx,
     ctx.serverFiles.concat(ctx.allCode).filter((p, i, a) => a.indexOf(p) === i && !TEST_FILE_RE.test(p) && !/config|\.env|README/i.test(p)),
     /["'`]https?:\/\/(localhost|127\.0\.0\.1):\d+/,
     5,
   );
+  // A localhost URL in a CORS allowlist is not an outgoing request: it only
+  // says which browser origins may call the API, and a localhost-only list
+  // in production restricts access rather than breaking requests. Only
+  // localhost URLs used as request targets (fetch, axios, httpx, …) count.
+  const localhost = localhostHits.filter((x) => !/origins|allow_origins|cors/i.test(lineText(x.text, x.line)));
   const lhBase = { id: "no-hardcoded-localhost", category: "reliability" as const, area: "deployment_config" as const, label: "No hardcoded localhost URLs" };
-  if (localhost.length === 0) out.push(pass(lhBase, "No hardcoded localhost URLs in application code."));
+  if (localhost.length === 0) out.push(pass(lhBase, "No hardcoded localhost URLs in application code (CORS allowlists excluded)."));
   else {
     const l = localhost[0]!;
     out.push({
@@ -574,7 +600,7 @@ async function deploymentChecks(ctx: Ctx): Promise<CheckResult[]> {
         startLine: l.line,
         endLine: l.line,
         snippet: redact(excerpt(l.text, l.line, l.line, 1)),
-        evidence: { method: "Regex match for http(s)://localhost:PORT in non-test, non-config source." },
+        evidence: { method: "Regex match for http(s)://localhost:PORT in non-test, non-config source, excluding CORS allowlists." },
         fingerprintKey: localhost.map((x) => x.path).sort().join(","),
       },
     });

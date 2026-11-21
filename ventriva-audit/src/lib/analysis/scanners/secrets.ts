@@ -16,6 +16,21 @@ function looksLikePlaceholder(v: string): boolean {
   return /(x{6,}|your[_-]|example|placeholder|changeme|dummy|<.*>|\.\.\.|0{10,})/i.test(v);
 }
 
+/**
+ * A line of an env-template file (`.env.example` etc.) that is commented out
+ * is documentation, not a live credential: `# DATABASE_URL=postgres://user:password@host`
+ * is an example for the reader, and the file is never loaded as config.
+ * Real secrets pasted into comments in real source or real `.env` files are
+ * still flagged — this skip applies to template files only.
+ */
+function isCommentedTemplateLine(text: string, matchIndex: number, filePath: string): boolean {
+  if (!ENV_TEMPLATE_RE.test(filePath)) return false;
+  const lineStart = text.lastIndexOf("\n", matchIndex - 1) + 1;
+  const lineEnd = text.indexOf("\n", matchIndex);
+  const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
+  return line.trimStart().startsWith("#");
+}
+
 export async function scanSecrets(repo: RepoIndex): Promise<{ findings: RawFinding[]; run: ScannerRun }> {
   const started = Date.now();
   const findings: RawFinding[] = [];
@@ -53,6 +68,7 @@ export async function scanSecrets(repo: RepoIndex): Promise<{ findings: RawFindi
       let m: RegExpExecArray | null;
       while ((m = re.exec(text)) !== null) {
         if (looksLikePlaceholder(m[0])) continue;
+        if (isCommentedTemplateLine(text, m.index, f.path)) continue;
         const line = lineOf(text, m.index);
         const inTests = TEST_PATH_RE.test(f.path);
         findings.push({
@@ -80,6 +96,7 @@ export async function scanSecrets(repo: RepoIndex): Promise<{ findings: RawFindi
     let j: RegExpExecArray | null;
     while ((j = jwt.exec(text)) !== null) {
       if (jwtRole(j[0]) !== "service_role") continue;
+      if (isCommentedTemplateLine(text, j.index, f.path)) continue;
       const line = lineOf(text, j.index);
       findings.push({
         ruleId: "secrets.supabase-service-role-key",

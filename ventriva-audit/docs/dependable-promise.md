@@ -49,3 +49,15 @@ A convenience sample exposed three incorrect conclusions and two items requiring
 | No auth provider detected | Unresolved/misleading without custom-auth review | `services/api/app/routers/oauth_signin.py:40` verifies Google identity; `services/api/app/core/auth.py` issues and verifies JWTs. Presence does not establish security. |
 
 This is not a random sample or a global accuracy estimate. Dependency advisory matches and other findings have not all been independently adjudicated. Founder-confirmed usefulness and actual fixes are not measured. Do not fix OnFlow to satisfy an incorrect detector; correct the detector and re-evaluate before presenting those items as blockers.
+
+## Re-test 2026-11-20 (Pacific time)
+
+Detectors were corrected for the five items above and re-evaluated with `npm run audit:local -- ../../onflow-v1 --json` against the same pinned OnFlow commit `3c18cedd`, engine revision `calibration-false-findings` (unmerged branch from main `9bab4be`). Semgrep was still unavailable in this environment, so the security category stayed unassessed and the numeric score stayed withheld — same limitation as the first trial, not a new one.
+
+- Commented-out example URLs in `.env.example` files no longer produce secret findings (the P0 is gone). A real uncommented database URL in a real `.env` file is still a P0; covered by `tests/calibration-onflow.test.ts`.
+- Custom authentication is now recognised: the auth check passes with the implementation named (`services/api/app/core/auth.py`), and the pass states its security was not verified — presence and security are no longer conflated.
+- An Expo app with `eas.json` passes the build check as a reproducible mobile build path instead of being told to add a `build` script.
+- Localhost URLs in CORS allowlists are excluded from the hardcoded-localhost check; a real outgoing localhost request is still flagged.
+- Pydantic `BaseSettings` with `@model_validator` now counts as environment validation.
+
+Result: findings went from P0 4 / P1 37 / P2 26 / P3 18 to P0 3 / P1 35 / P2 25 / P3 17. The remaining P0s are OSV dependency advisories, which were not adjudicated in either trial. The remaining readiness failures (password reset, legal pages, transactional email, runtime pinning, analytics, security headers) were not part of the reproduced-false list and were not re-adjudicated here. This is still not a founder-confirmed usefulness result: no founder reviewed the corrected report, and no fixes were verified through a recheck.
