@@ -8,7 +8,7 @@ import { canUse } from "@/lib/audits/entitlements";
 import { VERDICT_LABELS, type Verdict } from "@/lib/analysis/scoring";
 import { PRO } from "@/lib/config/plans";
 import type { AuditRow, EntitlementsRow, RepositoryRow } from "@/lib/db/types";
-import { KIND_LABEL, timeAgo } from "@/lib/format";
+import { inspectionRating, KIND_LABEL, timeAgo } from "@/lib/format";
 import { requireUser, supabaseServer } from "@/lib/supabase/server";
 
 export const metadata = { title: "Dashboard" };
@@ -37,19 +37,19 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const pro = e ? canUse(e, "monitor") : false;
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-10">
+    <div className="mx-auto max-w-6xl px-5 py-6">
       {sp.github_error ? <p role="alert" className="mb-6 rounded-[var(--radius-sm)] border border-blocked/40 bg-blocked/5 p-3 text-sm text-blocked">{sp.github_error}</p> : null}
       {sp.checkout === "success" ? <p className="mb-6 rounded-[var(--radius-sm)] border border-verified/40 bg-verified/5 p-3 text-sm text-verified">Payment received. Your credit appears below within a few seconds.</p> : null}
 
-      <section className="mb-10" aria-labelledby="workspace-heading">
-        <p className="text-sm font-bold uppercase tracking-widest text-ink-soft">Ventriva / Workspace</p>
-        <h1 id="workspace-heading" className="mt-2 text-3xl font-extrabold">Your founder workspace</h1>
+      <section className="mb-6" aria-labelledby="workspace-heading">
+        <p className="text-sm font-semibold uppercase tracking-widest text-ink-soft">Ventriva / Workspace</p>
+        <h1 id="workspace-heading" className="mt-2 text-3xl font-semibold">Your founder workspace</h1>
         <p className="mb-6 mt-2 text-ink-soft">Business validation and technical auditing use separate accounts for now. Your existing audit reports and payments remain here.</p>
         <ProductModuleCards compact />
       </section>
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-extrabold">Your repositories</h1>
+          <h1 className="text-3xl font-semibold">Your repositories</h1>
           <p className="mt-1 text-ink-soft">{user.email}</p>
         </div>
         {e ? (
@@ -64,7 +64,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
       {(alerts ?? []).length ? (
         <section className="mt-8 rounded-[var(--radius-sm)] border-l-4 border-blocked bg-sheet p-4">
-          <h2 className="text-base font-bold">New issues since your last check</h2>
+          <h2 className="text-base font-semibold">New issues since your last check</h2>
           <ul className="mt-2 space-y-1 text-sm">
             {(alerts ?? []).map((a) => (
               <li key={a.id as string}>{a.audit_id ? <Link className="underline-offset-4 hover:underline" href={`/dashboard/audits/${a.audit_id as string}`}>{a.message as string}</Link> : (a.message as string)}</li>
@@ -80,13 +80,13 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       ) : null}
 
       {(installs ?? []).length === 0 ? (
-        <section className="mt-10 rounded-[var(--radius-md)] border-2 border-dashed border-rule bg-sheet p-10 text-center">
-          <h2 className="text-2xl font-bold">Connect GitHub to start</h2>
+        <section className="mt-6 rounded-[var(--radius-md)] border-2 border-dashed border-rule bg-sheet p-10 text-center">
+          <h2 className="text-2xl font-semibold">Connect GitHub to start</h2>
           <p className="mx-auto mt-2 max-w-md text-ink-soft">Install the app on the repositories you want inspected. It gets read-only access to code and metadata, and nothing else.</p>
           <a href="/api/github/install" className={`${buttonStyles({ size: "lg" })} mt-6`}>Connect GitHub</a>
         </section>
       ) : (
-        <section className="mt-10">
+        <section className="mt-6">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm text-ink-soft">Connected: {(installs ?? []).map((i) => i.account_login as string).join(", ")}</p>
             <div className="flex gap-2">
@@ -100,6 +100,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <ul className="divide-y divide-rule rounded-[var(--radius-md)] border border-rule bg-sheet">
               {repoList.map((r) => {
                 const last = lastByRepo.get(r.id);
+                const rating = last ? inspectionRating(last.overall_score, last.verdict) : null;
                 const busy = !!running;
                 return (
                   <li key={r.id} className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-center">
@@ -110,7 +111,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                         {last ? (
                           <>
                             <Link href={`/dashboard/audits/${last.id}`} className="underline-offset-4 hover:underline">{KIND_LABEL[last.kind]} {timeAgo(last.created_at)}</Link>
-                            {last.status === "completed" && last.verdict ? <>: {VERDICT_LABELS[last.verdict as Verdict]}{last.overall_score !== null ? `, ${last.overall_score}/100` : ""}</> : ` (${last.status})`}
+                            {last.status === "completed" && last.verdict ? <>: {VERDICT_LABELS[last.verdict as Verdict]}{rating !== null ? `, ${rating}/10` : ""}</> : ` (${last.status})`}
                           </>
                         ) : "Not inspected yet"}
                       </p>

@@ -277,6 +277,7 @@ export async function analyzeRepository(repo: RepoIndex, opts: AnalyzeOptions): 
   const sourceFiles = repo.sourceFiles;
   const eligible = sourceFiles.filter((f) => f.language && SCANNED_LANGUAGES.has(f.language));
   const inspected = inspectedSourceFiles(eligible.map((f) => f.path), scanners);
+  const inspectedSet = new Set(inspected);
   const coverage: Coverage = {
     filesTotal: (opts.ingest?.filesExtracted ?? repo.files.length) + Object.values(opts.ingest?.skipped ?? {}).reduce((a, b) => a + b, 0),
     filesAnalyzed: repo.files.length,
@@ -287,6 +288,11 @@ export async function analyzeRepository(repo: RepoIndex, opts: AnalyzeOptions): 
     languages: languageBreakdown(sourceFiles),
     scanners,
     sourceCoverage: eligible.length === 0 ? 0 : inspected.length / eligible.length,
+    sourceInventory: {
+      inspected: [...inspected].sort(),
+      notInspected: eligible.filter((f) => !inspectedSet.has(f.path)).map((f) => f.path).sort(),
+      unsupported: sourceFiles.filter((f) => !f.language || !SCANNED_LANGUAGES.has(f.language)).map((f) => f.path).sort(),
+    },
     truncated: opts.ingest?.truncated ?? false,
     notes,
   };

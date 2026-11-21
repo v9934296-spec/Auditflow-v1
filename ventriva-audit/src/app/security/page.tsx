@@ -11,19 +11,19 @@ const FLOW = [
 
 export default function Security() {
   return (
-    <div className="mx-auto max-w-3xl px-5 py-16">
-      <h1 className="text-4xl font-extrabold">How your code is handled</h1>
+    <div className="mx-auto max-w-3xl px-5 py-6">
+      <h1 className="text-3xl font-semibold">How your code is handled</h1>
       <p className="mt-3 text-lg text-ink-soft">You are trusting us with private source code. Here is exactly what happens to it.</p>
-      <ol className="mt-10 space-y-6">
+      <ol className="mt-6 space-y-6">
         {FLOW.map(([title, body], i) => (
           <li key={title} className="grid grid-cols-[2.5rem_1fr] gap-3">
-            <span className="flex size-9 items-center justify-center rounded-full border-2 border-ink font-bold" aria-hidden>{i + 1}</span>
-            <div><h2 className="text-lg font-bold">{title}</h2><p className="mt-1 text-ink-soft">{body}</p></div>
+            <span className="flex size-9 items-center justify-center rounded-full border-2 border-ink font-semibold" aria-hidden>{i + 1}</span>
+            <div><h2 className="text-lg font-semibold">{title}</h2><p className="mt-1 text-ink-soft">{body}</p></div>
           </li>
         ))}
       </ol>
       <section className="mt-12 space-y-3 text-ink-soft">
-        <h2 className="text-2xl font-bold text-ink">Other commitments</h2>
+        <h2 className="text-2xl font-semibold text-ink">Other commitments</h2>
         <p>Data is encrypted in transit (TLS) and at rest (Supabase Postgres). Each account can only read its own rows, enforced with Postgres Row Level Security. Billing and usage limits are enforced on the server.</p>
         <p>Subprocessors: Supabase (database and auth), Vercel (web hosting), Trigger.dev (analysis workers), Anthropic (AI review for paid audits), Stripe (payments), Sentry (error monitoring), GitHub (repository access).</p>
         <p>Uninstalling the GitHub App revokes our access immediately and deletes the repository&rsquo;s stored audits. To delete your account and all data, email the address on the privacy page.</p>

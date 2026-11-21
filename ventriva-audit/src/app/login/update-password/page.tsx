@@ -10,8 +10,8 @@ export default function UpdatePassword() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   return (
-    <div className="mx-auto max-w-sm px-5 py-20">
-      <h1 className="text-3xl font-extrabold">Choose a new password</h1>
+    <div className="mx-auto max-w-sm px-5 py-12">
+      <h1 className="text-3xl font-semibold">Choose a new password</h1>
       <form
         className="mt-8 space-y-4 rounded-[var(--radius-md)] border border-rule bg-sheet p-6"
         onSubmit={async (e) => {

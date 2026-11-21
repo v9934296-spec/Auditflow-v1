@@ -114,6 +114,12 @@ export interface Coverage {
   scanners: ScannerRun[];
   /** Fraction (0–1) of source files positively inspected by Semgrep or ESLint. */
   sourceCoverage: number;
+  /** Absent on older reports. Lists only ingested, recognized source files. */
+  sourceInventory?: {
+    inspected: string[];
+    notInspected: string[];
+    unsupported: string[];
+  };
   truncated: boolean;
   notes: string[];
 }

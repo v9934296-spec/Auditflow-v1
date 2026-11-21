@@ -39,14 +39,14 @@ export default async function Pricing() {
     },
   ];
   return (
-    <div className="mx-auto max-w-6xl px-5 py-16">
-      <h1 className="text-4xl font-extrabold">Pricing</h1>
+    <div className="mx-auto max-w-6xl px-5 py-6">
+      <h1 className="text-3xl font-semibold">Pricing</h1>
       <p className="mt-2 max-w-xl text-ink-soft">Pay for the inspection once. Subscribe only if you want ongoing verification.</p>
-      <div className="mt-10 grid gap-6 md:grid-cols-3">
+      <div className="mt-6 grid gap-6 md:grid-cols-3">
         {tiers.map((t) => (
           <section key={t.name} className={`flex flex-col rounded-[var(--radius-md)] border bg-sheet p-6 ${t.featured ? "border-ink border-2" : "border-rule"}`}>
-            <h2 className="text-xl font-bold">{t.name}</h2>
-            <p className="mt-4"><span className="font-[family-name:var(--font-display)] text-4xl font-black">{t.price}</span> <span className="text-sm text-ink-soft">{t.cadence}</span></p>
+            <h2 className="text-xl font-semibold">{t.name}</h2>
+            <p className="mt-4"><span className="font-[family-name:var(--font-display)] text-3xl font-semibold">{t.price}</span> <span className="text-sm text-ink-soft">{t.cadence}</span></p>
             <p className="mt-2 text-ink-soft">{t.body}</p>
             <ul className="mt-6 flex-1 space-y-2 text-sm">
               {t.items.map((i) => <li key={i} className="flex gap-2"><span aria-hidden className="text-verified">✓</span>{i}</li>)}
@@ -55,8 +55,8 @@ export default async function Pricing() {
           </section>
         ))}
       </div>
-      <section className="mt-10 rounded-[var(--radius-md)] border border-rule bg-sheet p-6">
-        <h2 className="text-xl font-bold">Validate an idea</h2>
+      <section className="mt-6 rounded-[var(--radius-md)] border border-rule bg-sheet p-6">
+        <h2 className="text-xl font-semibold">Validate an idea</h2>
         <p className="mt-2 max-w-2xl text-ink-soft">
           Idea validation is a separate Ventriva product with its own checkout, allowance balance,
           subscription and billing portal. Linking accounts does not combine payment credits or transfer subscriptions.

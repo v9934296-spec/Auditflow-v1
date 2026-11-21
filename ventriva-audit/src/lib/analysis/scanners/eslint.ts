@@ -42,7 +42,8 @@ function config(isTs: boolean): Linter.Config[] {
   for (const id of Object.keys(ESLINT_RULES)) rules[id] = id === "complexity" ? ["warn", { max: 20 }] : "warn";
   return [
     {
-      files: ["**/*"],
+      // ESLint's generic glob does not opt TypeScript/JSX into flat config.
+      files: isTs ? ["**/*.ts", "**/*.tsx"] : ["**/*.js", "**/*.jsx"],
       plugins: { security: security as unknown as NonNullable<Linter.Config["plugins"]>[string] },
       languageOptions: {
         ecmaVersion: "latest",
