@@ -103,3 +103,20 @@ Set `SEMGREP_ENABLE_VERSION_CHECK=0` locally, or Semgrep can stall for over a mi
 - A full Stripe refund for a fulfilled audit checkout can claw back one unused credit, once per checkout. Apply migration `0009_audit_refund_reconciliation.sql` before deploying the refund handler. Reconcile legacy purchases without a fulfillment row using `docs/stripe-fulfillment.md`.
 - Architecture and performance are reported as "Not assessed" in rubric `2026.11-v2`.
 - `/terms` and `/privacy` have been expanded to match current product behavior; still have them reviewed by counsel before launch.
+
+## Public page watches
+
+The workspace Watch tab stores public HTTPS pages under the existing AuditFlow sign-in.
+Apply migrations `0010_page_watches.sql` and `0011_page_watch_capacity.sql` and deploy the existing Trigger.dev project with the
+`check-page-watches` schedule. The first successful check records a baseline. Later checks store
+visible text changes in Watch history. Enter the final URL for pages that redirect.
+The fetcher currently supports public IPv4 destinations and server-rendered HTML.
+
+## Linked validation reports
+
+Deploy the matching Ventriva FastAPI bridge before enabling the workspace validation flow.
+Both deployments use the existing shared bridge secret. The workspace uses the pinned legacy
+HTTPS origin. Link a legacy account with its one-time code, then start a preview or full report
+and open its progress and completed report inside the workspace. Validation reservations and
+billing still belong to the linked account. Verify linked and unlinked users in staging before
+routing customer traffic to the new version.

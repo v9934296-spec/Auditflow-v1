@@ -15,19 +15,19 @@ export default function ValidatePage() {
         Claims are separated from what the research actually supports.
       </p>
       <section className="mt-6 rounded-[var(--radius-md)] border border-rule bg-sheet p-6 md:p-8" aria-labelledby="separate-account-heading">
-        <h2 id="separate-account-heading" className="text-xl font-semibold">Idea validation currently opens in a separate application.</h2>
+        <h2 id="separate-account-heading" className="text-xl font-semibold">Link an existing validation account</h2>
         <p className="mt-3 text-ink-soft">
           The validation app has its own account, sign-in, saved reports, subscriptions and billing.
-          Your AuditFlow credentials and purchases do not automatically carry over.
-          You can voluntarily link the accounts for read-only report summaries below. Sign-in and billing remain separate.
+          Validation credits come from the account you link.
+          Once linked, you can start a validation and read its report in this workspace.
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <a href={VALIDATION_APP_URL} className={buttonStyles({ size: "lg" })}>
-            Open Ventriva idea validator <span aria-hidden="true">↗</span>
+            Open the validation app <span aria-hidden="true">↗</span>
           </a>
           <Link href="/dashboard" className={buttonStyles({ variant: "outline", size: "lg" })}>Go to technical audits</Link>
         </div>
-        <p className="mt-4 text-sm text-ink-soft">You are leaving this workspace. Sign in separately on the idea validator to access its reports.</p>
+        <p className="mt-4 text-sm text-ink-soft">Sign in separately to generate a link code or manage validation billing.</p>
       </section>
       <AccountLinkPanel />
     </div>
