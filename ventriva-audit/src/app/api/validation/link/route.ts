@@ -11,10 +11,13 @@ export const dynamic = "force-dynamic";
 const HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
 const Body = z.object({ code: LinkCode }).strict();
 
-async function authorize(req: Request) {
+async function authorize(req: Request, requireConfirmed = false) {
   if (!sameOrigin(req)) return { error: NextResponse.json({ error: "Forbidden" }, { status: 403, headers: HEADERS }) };
   const user = await getUser();
   if (!user) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: HEADERS }) };
+  if (requireConfirmed && !user.email_confirmed_at) {
+    return { error: NextResponse.json({ error: "Confirm your email before linking accounts" }, { status: 403, headers: HEADERS }) };
+  }
   if (!(await rateLimit("validationLink", user.id))) {
     return { error: NextResponse.json({ error: "Too many account-link attempts" }, { status: 429, headers: HEADERS }) };
   }
@@ -22,11 +25,8 @@ async function authorize(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = await authorize(req);
+  const auth = await authorize(req, true);
   if (auth.error) return auth.error;
-  if (!auth.user?.email_confirmed_at) {
-    return NextResponse.json({ error: "Confirm your email before linking accounts" }, { status: 403, headers: HEADERS });
-  }
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid linking code" }, { status: 400, headers: HEADERS });
   const result = await updateLegacyLink(auth.user.id, "redeem", parsed.data.code);
