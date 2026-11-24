@@ -54,6 +54,7 @@ openssl rand -base64 48   # → STATE_SIGNING_SECRET
 1. Create a project, then copy URL, anon key and service-role key into `.env.local`.
 2. Apply migrations: `npx supabase link --project-ref <ref>` then `npm run db:push` (or paste `supabase/migrations/*.sql` into the SQL editor, in order).
 3. Auth → URL configuration: Site URL = your app URL; add `<APP_URL>/auth/callback` to redirect URLs. Keep "Confirm email" on (audits require a confirmed email).
+4. Google sign-in (beta path, recommended): Auth → Providers → Google → enable it, using a Google Cloud OAuth client (APIs & Services → Credentials → OAuth client ID, type Web application). Set its authorized redirect URI to `https://<your-project-ref>.supabase.co/auth/v1/callback` — that is the Supabase callback, not your app URL. No code change is needed: the login page offers "Continue with Google" and `/auth/callback` exchanges the code for a session. Google verifies the email, so beta users skip the Supabase confirmation email entirely. If a beta user already created an unconfirmed password account with the same email, delete that user in Supabase (Authentication → Users) first, or they will hit a duplicate-account conflict.
 
 ### 3. GitHub App
 Developer settings → GitHub Apps → New:
